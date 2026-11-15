@@ -966,15 +966,22 @@ export const GeneralSettingsBackupView: React.FC<GeneralSettingsBackupViewProps>
 
         <div>
           <label className="block text-xs font-medium text-slate-700 mb-1">
-            {isPt ? 'Domínio Personalizado (ex: ofertas.seudominio.com)' : 'Custom Domain'}
+            {isPt
+              ? 'Domínio Público / Personalizado (ex: https://global-sell-beta.vercel.app ou https://ofertas.seudominio.com)'
+              : 'Public / Custom Domain (e.g. https://global-sell-beta.vercel.app)'}
           </label>
           <input
             type="text"
             value={customDomain}
             onChange={(e) => setCustomDomain(e.target.value)}
-            placeholder={window.location.origin}
+            placeholder="https://global-sell-beta.vercel.app"
             className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg"
           />
+          <p className="text-[11px] text-slate-500 mt-1">
+            {isPt
+              ? 'Quando preenchido, todos os botões de "Copiar URL" e "Ver página" usam este domínio público (ideal para abrir links em qualquer navegador e campanhas de tráfego pago).'
+              : 'When set, all Copy URL and View Page links use this public domain across browsers and ad campaigns.'}
+          </p>
         </div>
 
         <label className="flex items-center gap-2.5 text-xs text-slate-700 cursor-pointer">

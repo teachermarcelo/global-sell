@@ -11,7 +11,7 @@ import {
   Sparkles,
   Wand2,
 } from 'lucide-react';
-import { getPublicPagePath, slugify } from '../../lib/i18n';
+import { getPublicBaseUrl, getPublicPagePath, slugify } from '../../lib/i18n';
 import { BUILTIN_TEMPLATES, BuiltInTemplate } from '../../lib/templates';
 import {
   AffiliateLink,
@@ -287,11 +287,12 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
       );
 
       if (publishNow) {
-        const ptUrl = `${window.location.origin}${getPublicPagePath(
+        const publicBaseUrl = getPublicBaseUrl(settings?.customDomain);
+        const ptUrl = `${publicBaseUrl}${getPublicPagePath(
           language === 'auto' ? 'pt' : language,
           finalSlug
         )}`;
-        const enUrl = `${window.location.origin}/en/${finalSlug}`;
+        const enUrl = `${publicBaseUrl}/en/${finalSlug}`;
         setReadyModal({ pageId: createdId, publicUrl: ptUrl, enUrl });
       } else {
         onDoneGoToPages();
@@ -630,6 +631,9 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
                   className="flex-1 px-3 py-2.5 text-sm font-mono focus:outline-none"
                 />
               </div>
+              <p className="text-[11px] font-mono text-slate-400 mt-1 truncate">
+                {getPublicBaseUrl(settings?.customDomain)}/{language === 'auto' ? 'pt' : language}/{slug || 'meu-produto-oficial'}
+              </p>
             </div>
           </div>
 

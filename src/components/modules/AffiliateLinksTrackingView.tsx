@@ -9,7 +9,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { formatCurrency, slugify } from '../../lib/i18n';
+import { formatCurrency, getPublicBaseUrl, slugify } from '../../lib/i18n';
 import {
   AffiliateLink,
   Campaign,
@@ -23,6 +23,7 @@ interface AffiliateLinksViewProps {
   uiLang: LanguageCode;
   links: AffiliateLink[];
   products: Product[];
+  customDomain?: string;
   onSaveLink: (
     input: Omit<AffiliateLink, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'>,
     existingId?: string
@@ -34,10 +35,12 @@ export const AffiliateLinksView: React.FC<AffiliateLinksViewProps> = ({
   uiLang,
   links,
   products,
+  customDomain,
   onSaveLink,
   onDeleteLink,
 }) => {
   const isPt = uiLang === 'pt';
+  const publicBaseUrl = getPublicBaseUrl(customDomain);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AffiliateLink | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -111,7 +114,7 @@ export const AffiliateLinksView: React.FC<AffiliateLinksViewProps> = ({
   };
 
   const copyGoUrl = (l: AffiliateLink) => {
-    const url = `${window.location.origin}/go/${l.shortCode}`;
+    const url = `${publicBaseUrl}/go/${l.shortCode}`;
     navigator.clipboard?.writeText(url);
     setCopiedId(l.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -194,7 +197,7 @@ export const AffiliateLinksView: React.FC<AffiliateLinksViewProps> = ({
                             )}
                           </button>
                           <a
-                            href={`/go/${l.shortCode}`}
+                            href={`${publicBaseUrl}/go/${l.shortCode}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1.5 rounded border border-slate-200 text-blue-600 hover:bg-blue-50"
@@ -507,6 +510,7 @@ interface AnalyticsConversionsViewProps {
   pages: PageItem[];
   clickEvents: ClickEvent[];
   campaigns: Campaign[];
+  customDomain?: string;
   onSaveCampaign: (
     input: Omit<Campaign, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'>,
     existingId?: string
@@ -519,10 +523,12 @@ export const AnalyticsConversionsView: React.FC<AnalyticsConversionsViewProps> =
   pages,
   clickEvents,
   campaigns,
+  customDomain,
   onSaveCampaign,
   onDeleteCampaign,
 }) => {
   const isPt = uiLang === 'pt';
+  const publicBaseUrl = getPublicBaseUrl(customDomain);
   const [cmpName, setCmpName] = useState('');
   const [cmpPlatform, setCmpPlatform] = useState<Campaign['platform']>('google_ads');
   const [cmpPageId, setCmpPageId] = useState(pages[0]?.id || '');
@@ -730,7 +736,7 @@ export const AnalyticsConversionsView: React.FC<AnalyticsConversionsViewProps> =
               {campaigns.map((c) => {
                 const pg = pages.find((p) => p.id === c.pageId);
                 const fullUtmUrl = pg
-                  ? `${window.location.origin}/${pg.language === 'auto' ? 'pt' : pg.language}/${pg.slug}?utm_source=${c.utmSource}&utm_medium=${c.utmMedium}&utm_campaign=${c.utmCampaign}`
+                  ? `${publicBaseUrl}/${pg.language === 'auto' ? 'pt' : pg.language}/${pg.slug}?utm_source=${c.utmSource}&utm_medium=${c.utmMedium}&utm_campaign=${c.utmCampaign}`
                   : '';
                 return (
                   <div key={c.id} className="p-4 flex items-center justify-between gap-4">

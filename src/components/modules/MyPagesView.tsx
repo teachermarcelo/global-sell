@@ -15,7 +15,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react';
-import { getPublicPagePath } from '../../lib/i18n';
+import { getPublicBaseUrl, getPublicPagePath } from '../../lib/i18n';
 import { Category, ClickEvent, LanguageCode, PageItem, Product } from '../../types';
 
 interface MyPagesViewProps {
@@ -24,6 +24,7 @@ interface MyPagesViewProps {
   products: Product[];
   categories: Category[];
   clickEvents: ClickEvent[];
+  customDomain?: string;
   onCreateNewPresell: () => void;
   onManageCategories: () => void;
   onEditInBuilder: (page: PageItem) => void;
@@ -40,6 +41,7 @@ export const MyPagesView: React.FC<MyPagesViewProps> = ({
   products,
   categories,
   clickEvents,
+  customDomain,
   onCreateNewPresell,
   onManageCategories,
   onEditInBuilder,
@@ -50,6 +52,7 @@ export const MyPagesView: React.FC<MyPagesViewProps> = ({
   onOpenAnalytics,
 }) => {
   const isPt = uiLang === 'pt';
+  const publicBaseUrl = getPublicBaseUrl(customDomain);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -141,7 +144,7 @@ export const MyPagesView: React.FC<MyPagesViewProps> = ({
 
   const handleCopyUrl = (page: PageItem) => {
     const path = getPublicPagePath(page.language === 'auto' ? 'pt' : page.language, page.slug);
-    const fullUrl = `${window.location.origin}${path}`;
+    const fullUrl = `${publicBaseUrl}${path}`;
     navigator.clipboard?.writeText(fullUrl);
     setCopiedId(page.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -465,7 +468,7 @@ export const MyPagesView: React.FC<MyPagesViewProps> = ({
 
                           {pg.status === 'published' && (
                             <a
-                              href={pubPath}
+                              href={`${publicBaseUrl}${pubPath}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               title={isPt ? 'Abrir URL pública' : 'Open public URL'}

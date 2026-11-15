@@ -4,7 +4,9 @@ import {
   buildAffiliateRedirectUrl,
   formatCurrency,
   generatePixPayload,
+  getPublicBaseUrl,
   getPublicPagePath,
+  normalizeAssetUrl,
   slugify,
 } from './i18n.ts';
 
@@ -31,6 +33,24 @@ test('getPublicPagePath generates language-specific routes', () => {
   assert.equal(getPublicPagePath('pt', 'katori'), '/pt/katori');
   assert.equal(getPublicPagePath('en', 'katori'), '/en/katori');
   assert.equal(getPublicPagePath('auto', 'katori'), '/p/katori');
+});
+
+test('getPublicBaseUrl normalizes custom domains with or without protocol/trailing slashes', () => {
+  assert.equal(getPublicBaseUrl('https://global-sell-beta.vercel.app/'), 'https://global-sell-beta.vercel.app');
+  assert.equal(getPublicBaseUrl('ofertas.seudominio.com/'), 'https://ofertas.seudominio.com');
+  assert.equal(getPublicBaseUrl('http://localhost:3000///'), 'http://localhost:3000');
+  assert.equal(getPublicBaseUrl(''), '');
+});
+
+test('normalizeAssetUrl rewrites legacy /src/assets/images/ paths to /images/', () => {
+  assert.equal(
+    normalizeAssetUrl('/src/assets/images/presell_hero_editorial_1794756577028.jpg'),
+    '/images/presell_hero_editorial_1794756577028.jpg'
+  );
+  assert.equal(
+    normalizeAssetUrl('/images/presell_hero_editorial_1794756577028.jpg'),
+    '/images/presell_hero_editorial_1794756577028.jpg'
+  );
 });
 
 test('formatCurrency formats BRL and USD cleanly', () => {

@@ -31,6 +31,7 @@ import {
   formatCurrency,
   generatePixPayload,
   normalizeAssetUrl,
+  slugify,
 } from '../lib/i18n';
 import { LanguageCode, PageBlock, PublishedPage } from '../types';
 
@@ -105,27 +106,53 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
     async function loadPublished() {
       setLoading(true);
       setNotFound(false);
+      const rawKey = decodeURIComponent(slugOrKey || '').split('/')[0].trim();
+      const normalizedSlug = slugify(rawKey);
       try {
-        // First try direct publicKey
-        const directSnap = await getDoc(doc(db, 'publishedPages', slugOrKey));
-        if (directSnap.exists() && directSnap.data()?.status === 'published') {
-          if (!cancelled) {
-            setPage(directSnap.data() as PublishedPage);
-            setLoading(false);
+        // First try direct publicKey if valid Firestore ID
+        if (/^[a-zA-Z0-9_-]{1,128}$/.test(rawKey)) {
+          try {
+            const directSnap = await getDoc(doc(db, 'publishedPages', rawKey));
+            if (directSnap.exists() && directSnap.data()?.status === 'published') {
+              if (!cancelled) {
+                setPage(directSnap.data() as PublishedPage);
+                setLoading(false);
+              }
+              return;
+            }
+          } catch {
+            // Continue to slug query fallback
           }
-          return;
         }
 
-        // Fallback to slug lookup
+        // Fallback to normalized slug lookup
         const q = query(
           collection(db, 'publishedPages'),
-          where('slug', '==', slugOrKey),
+          where('slug', '==', normalizedSlug),
           where('status', '==', 'published')
         );
         const snap = await getDocs(q);
         if (!snap.empty && !cancelled) {
           setPage(snap.docs[0].data() as PublishedPage);
-        } else if (!cancelled) {
+          return;
+        }
+
+        // Secondary fallback if raw lowercase slug differs
+        const lowerRaw = rawKey.toLowerCase();
+        if (lowerRaw && lowerRaw !== normalizedSlug) {
+          const q2 = query(
+            collection(db, 'publishedPages'),
+            where('slug', '==', lowerRaw),
+            where('status', '==', 'published')
+          );
+          const snap2 = await getDocs(q2);
+          if (!snap2.empty && !cancelled) {
+            setPage(snap2.docs[0].data() as PublishedPage);
+            return;
+          }
+        }
+
+        if (!cancelled) {
           setNotFound(true);
         }
       } catch (err) {

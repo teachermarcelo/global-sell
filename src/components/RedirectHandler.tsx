@@ -16,8 +16,12 @@ export const RedirectHandler: React.FC<RedirectHandlerProps> = ({ shortCode }) =
     let active = true;
     async function resolve() {
       try {
-        const cleanCode = sanitizeId(shortCode);
-        const snap = await getDoc(doc(db, 'redirectLinks', cleanCode));
+        const rawCode = decodeURIComponent(shortCode || '').split('/')[0].trim();
+        const cleanCode = sanitizeId(rawCode);
+        let snap = await getDoc(doc(db, 'redirectLinks', cleanCode));
+        if (!snap.exists() && cleanCode.toLowerCase() !== cleanCode) {
+          snap = await getDoc(doc(db, 'redirectLinks', cleanCode.toLowerCase()));
+        }
         if (!snap.exists() || snap.data()?.isActive !== true) {
           if (active) setStatus('error');
           return;

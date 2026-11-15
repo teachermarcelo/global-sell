@@ -268,3 +268,12 @@ export function normalizeAssetUrl(url?: string): string {
     : url;
 }
 
+export function getPublicBaseUrl(customDomain?: string): string {
+  const raw = (customDomain || '').trim().replace(/\/+$/, '');
+  if (raw) {
+    return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  }
+  return typeof window !== 'undefined' ? window.location.origin : '';
+}
+
+

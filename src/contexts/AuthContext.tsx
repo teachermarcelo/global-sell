@@ -22,6 +22,7 @@ interface AuthContextValue {
   profile: UserProfile | null;
   loading: boolean;
   authError: string | null;
+  unauthorizedDomain: string | null;
   uiLang: LanguageCode;
   setUiLang: (lang: LanguageCode) => void;
   signInWithGoogle: () => Promise<void>;
@@ -35,6 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
   const [uiLang, setUiLang] = useState<LanguageCode>(() => detectVisitorLanguage('pt'));
 
   useEffect(() => {
@@ -127,10 +129,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     setAuthError(null);
+    setUnauthorizedDomain(null);
     try {
       await signInWithPopup(auth, googleAuthProvider);
     } catch (err: unknown) {
+      const code = typeof err === 'object' && err !== null && 'code' in err ? String((err as { code: unknown }).code) : '';
       const msg = err instanceof Error ? err.message : 'Falha ao autenticar com Google.';
+      if (code === 'auth/unauthorized-domain' || msg.includes('auth/unauthorized-domain')) {
+        setUnauthorizedDomain(typeof window !== 'undefined' ? window.location.hostname : '');
+      }
       setAuthError(msg);
     }
   };
@@ -148,6 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         profile,
         loading,
         authError,
+        unauthorizedDomain,
         uiLang,
         setUiLang,
         signInWithGoogle,

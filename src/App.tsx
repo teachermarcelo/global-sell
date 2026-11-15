@@ -5,7 +5,9 @@
 
 import React, { useMemo, useState } from 'react';
 import {
-  CheckCircle2,
+  Check,
+  Copy,
+  ExternalLink,
   Globe,
   Layers,
   ShieldCheck,
@@ -59,7 +61,8 @@ function parsePublicRoute(pathname: string):
 }
 
 const AuthGateScreen: React.FC = () => {
-  const { uiLang, setUiLang, signInWithGoogle, authError } = useAuth();
+  const { uiLang, setUiLang, signInWithGoogle, authError, unauthorizedDomain } = useAuth();
+  const [copiedDomain, setCopiedDomain] = useState(false);
   const t = UI_LABELS[uiLang] || UI_LABELS.pt;
   const isPt = uiLang === 'pt';
 
@@ -112,8 +115,59 @@ const AuthGateScreen: React.FC = () => {
           </p>
 
           {authError && (
-            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
-              {authError}
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-2.5">
+              <p className="font-semibold text-rose-900">{authError}</p>
+              {unauthorizedDomain && (
+                <div className="space-y-2 text-slate-700 bg-white/80 rounded-lg p-3 border border-rose-200">
+                  <p className="font-medium text-slate-900">
+                    {isPt
+                      ? 'Como liberar o login Google neste domínio (leva 30 segundos):'
+                      : 'How to authorize Google Sign-In on this domain (takes 30s):'}
+                  </p>
+                  <div className="flex items-center justify-between gap-2 bg-slate-100 px-2.5 py-1.5 rounded border border-slate-200">
+                    <code className="font-mono text-[11px] text-slate-900 select-all">
+                      {unauthorizedDomain}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(unauthorizedDomain);
+                        setCopiedDomain(true);
+                        setTimeout(() => setCopiedDomain(false), 2000);
+                      }}
+                      className="px-2 py-1 rounded bg-white border border-slate-200 text-[11px] font-medium text-slate-700 inline-flex items-center gap-1 cursor-pointer shrink-0"
+                    >
+                      {copiedDomain ? (
+                        <Check className="w-3 h-3 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                      <span>{copiedDomain ? (isPt ? 'Copiado' : 'Copied') : isPt ? 'Copiar' : 'Copy'}</span>
+                    </button>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    {isPt
+                      ? '1. Abra o Firebase Console → Authentication → Settings → Authorized domains → Add domain e cole o domínio acima.'
+                      : '1. Open Firebase Console → Authentication → Settings → Authorized domains → Add domain and paste the domain above.'}
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-emerald-700 font-medium">
+                    {isPt
+                      ? 'Nota: Suas páginas públicas (/pt/slug, /en/slug, /go/codigo) já funcionam sem precisar de login.'
+                      : 'Note: Public presell & redirect URLs (/pt/slug, /en/slug, /go/code) already work without sign-in.'}
+                  </p>
+                  <a
+                    href="https://console.firebase.google.com/project/gen-lang-client-0776430449/authentication/settings"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold"
+                  >
+                    <span>
+                      {isPt ? 'Abrir Firebase Authorized Domains' : 'Open Firebase Authorized Domains'}
+                    </span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
             </div>
           )}
 
@@ -300,6 +354,7 @@ const WorkspaceShell: React.FC = () => {
               products={data.products}
               categories={data.categories}
               clickEvents={data.clickEvents}
+              customDomain={data.settings?.customDomain}
               onCreateNewPresell={() => {
                 setWizardInitialProduct(null);
                 setActiveModule('presell-wizard');
@@ -411,6 +466,7 @@ const WorkspaceShell: React.FC = () => {
               uiLang={uiLang}
               links={data.affiliateLinks}
               products={data.products}
+              customDomain={data.settings?.customDomain}
               onSaveLink={data.saveAffiliateLink}
               onDeleteLink={data.deleteAffiliateLink}
             />
@@ -430,6 +486,7 @@ const WorkspaceShell: React.FC = () => {
               pages={data.pages}
               clickEvents={data.clickEvents}
               campaigns={data.campaigns}
+              customDomain={data.settings?.customDomain}
               onSaveCampaign={data.saveCampaign}
               onDeleteCampaign={data.deleteCampaign}
             />
