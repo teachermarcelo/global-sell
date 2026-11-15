@@ -1,0 +1,515 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOptString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isOptBool(data, key) {
+      return !(key in data) || data[key] is bool;
+    }
+
+    function isOptNumber(data, key) {
+      return !(key in data) || (data[key] is int || data[key] is float);
+    }
+
+    function isOptMap(data, key) {
+      return !(key in data) || data[key] is map;
+    }
+
+    function isOptList(data, key, maxLen) {
+      return !(key in data) || (data[key] is list && data[key].size() <= maxLen);
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'plan', 'defaultLang', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'photoUrl', 'plan', 'defaultLang', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && isOptString(data, 'photoUrl', 500)
+        && data.plan is string && data.plan.size() <= 30 && data.plan in ['starter', 'pro', 'enterprise']
+        && data.defaultLang is string && data.defaultLang.size() <= 10 && data.defaultLang in ['pt', 'en', 'es']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'companyName', 'defaultPolicyEmail', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && isOptString(data, 'companyName', 150)
+        && isOptString(data, 'defaultPolicyEmail', 200)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'slug', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'name', 'slug', 'description', 'color', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 80 && data.slug.matches('^[a-z0-9\\-]+$')
+        && isOptString(data, 'description', 300)
+        && isOptString(data, 'color', 30)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'country', 'language', 'affiliateUrl', 'price', 'currency', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'name', 'description', 'imageUrl', 'categoryId', 'originCountry', 'country', 'language', 'network', 'affiliateUrl', 'price', 'currency', 'commissionRate', 'producerEmail', 'status', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 140
+        && isOptString(data, 'description', 2000)
+        && isOptString(data, 'imageUrl', 1000)
+        && isOptString(data, 'categoryId', 128)
+        && isOptString(data, 'originCountry', 10)
+        && data.country is string && data.country.size() >= 2 && data.country.size() <= 10
+        && data.language is string && data.language.size() <= 10 && data.language in ['pt', 'en', 'es', 'auto']
+        && isOptString(data, 'network', 80)
+        && data.affiliateUrl is string && data.affiliateUrl.size() >= 1 && data.affiliateUrl.size() <= 2000
+        && (data.price is int || data.price is float) && data.price >= 0
+        && data.currency is string && data.currency.size() <= 10 && data.currency in ['BRL', 'USD', 'EUR', 'GBP']
+        && isOptNumber(data, 'commissionRate')
+        && isOptString(data, 'producerEmail', 200)
+        && data.status is string && data.status.size() <= 20 && data.status in ['active', 'paused', 'archived']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAffiliateLink(data) {
+      return data.keys().hasAll(['ownerId', 'label', 'shortCode', 'destinationUrl', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'productId', 'label', 'shortCode', 'destinationUrl', 'alternativeUrls', 'country', 'network', 'affiliateTag', 'utmSource', 'utmMedium', 'utmCampaign', 'buttonText', 'isPrimary', 'isActive', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid
+        && isOptString(data, 'productId', 128)
+        && data.label is string && data.label.size() >= 1 && data.label.size() <= 120
+        && data.shortCode is string && data.shortCode.size() >= 2 && data.shortCode.size() <= 64 && data.shortCode.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.destinationUrl is string && data.destinationUrl.size() >= 1 && data.destinationUrl.size() <= 2000
+        && isOptList(data, 'alternativeUrls', 10)
+        && isOptString(data, 'country', 10)
+        && isOptString(data, 'network', 80)
+        && isOptString(data, 'affiliateTag', 120)
+        && isOptString(data, 'utmSource', 100)
+        && isOptString(data, 'utmMedium', 100)
+        && isOptString(data, 'utmCampaign', 100)
+        && isOptString(data, 'buttonText', 80)
+        && isOptBool(data, 'isPrimary')
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRedirectLink(data) {
+      return data.keys().hasAll(['ownerId', 'linkId', 'shortCode', 'destinationUrl', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'linkId', 'productId', 'shortCode', 'destinationUrl', 'utmSource', 'utmMedium', 'utmCampaign', 'isActive', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid
+        && data.linkId is string && data.linkId.size() >= 1 && data.linkId.size() <= 128
+        && isOptString(data, 'productId', 128)
+        && data.shortCode is string && data.shortCode.size() >= 2 && data.shortCode.size() <= 64 && data.shortCode.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.destinationUrl is string && data.destinationUrl.size() >= 1 && data.destinationUrl.size() <= 2000
+        && isOptString(data, 'utmSource', 100)
+        && isOptString(data, 'utmMedium', 100)
+        && isOptString(data, 'utmCampaign', 100)
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPage(data) {
+      return data.keys().hasAll(['ownerId', 'title', 'slug', 'pageKind', 'presellType', 'funnelStage', 'language', 'status', 'ghostMode', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'parentPageId', 'productId', 'categoryId', 'templateId', 'title', 'slug', 'pageKind', 'presellType', 'funnelStage', 'language', 'originCountry', 'targetCountry', 'affiliateLinkId', 'affiliateUrl', 'policyEmailMode', 'policyEmail', 'ghostMode', 'status', 'sortOrder', 'publicKey', 'blocks', 'theme', 'seo', 'tracking', 'whatsapp', 'paymentConfig', 'abTest', 'translations', 'publishedAt', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid
+        && isOptString(data, 'parentPageId', 128)
+        && isOptString(data, 'productId', 128)
+        && isOptString(data, 'categoryId', 128)
+        && isOptString(data, 'templateId', 128)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 100 && data.slug.matches('^[a-z0-9\\-]+$')
+        && data.pageKind is string && data.pageKind.size() <= 20 && data.pageKind in ['presell', 'landing', 'subpage', 'comparison', 'review']
+        && data.presellType is string && data.presellType.size() >= 1 && data.presellType.size() <= 60
+        && data.funnelStage is string && data.funnelStage.size() <= 20 && data.funnelStage in ['top', 'middle', 'bottom']
+        && data.language is string && data.language.size() <= 10 && data.language in ['pt', 'en', 'es', 'auto']
+        && isOptString(data, 'originCountry', 10)
+        && isOptString(data, 'targetCountry', 10)
+        && isOptString(data, 'affiliateLinkId', 128)
+        && isOptString(data, 'affiliateUrl', 2000)
+        && isOptString(data, 'policyEmailMode', 20)
+        && isOptString(data, 'policyEmail', 200)
+        && data.ghostMode is bool
+        && data.status is string && data.status.size() <= 20 && data.status in ['draft', 'published', 'processing', 'unpublished']
+        && isOptNumber(data, 'sortOrder')
+        && isOptString(data, 'publicKey', 128)
+        && isOptList(data, 'blocks', 60)
+        && isOptMap(data, 'theme')
+        && isOptMap(data, 'seo')
+        && isOptMap(data, 'tracking')
+        && isOptMap(data, 'whatsapp')
+        && isOptMap(data, 'paymentConfig')
+        && isOptMap(data, 'abTest')
+        && isOptMap(data, 'translations')
+        && (!( 'publishedAt' in data ) || data.publishedAt == null || data.publishedAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublishedPage(data) {
+      return data.keys().hasAll(['ownerId', 'pageId', 'publicKey', 'slug', 'title', 'pageKind', 'presellType', 'language', 'status', 'ghostMode', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'pageId', 'productId', 'publicKey', 'slug', 'title', 'pageKind', 'presellType', 'funnelStage', 'language', 'originCountry', 'targetCountry', 'affiliateUrl', 'policyEmail', 'ghostMode', 'status', 'blocks', 'theme', 'seo', 'tracking', 'whatsapp', 'paymentConfig', 'abTest', 'translations', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid
+        && data.pageId is string && data.pageId.size() >= 1 && data.pageId.size() <= 128
+        && isOptString(data, 'productId', 128)
+        && data.publicKey is string && data.publicKey.size() >= 1 && data.publicKey.size() <= 128
+        && data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 100
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && data.pageKind is string && data.pageKind.size() <= 20 && data.pageKind in ['presell', 'landing', 'subpage', 'comparison', 'review']
+        && data.presellType is string && data.presellType.size() >= 1 && data.presellType.size() <= 60
+        && isOptString(data, 'funnelStage', 20)
+        && data.language is string && data.language.size() <= 10 && data.language in ['pt', 'en', 'es', 'auto']
+        && isOptString(data, 'originCountry', 10)
+        && isOptString(data, 'targetCountry', 10)
+        && isOptString(data, 'affiliateUrl', 2000)
+        && isOptString(data, 'policyEmail', 200)
+        && data.ghostMode is bool
+        && data.status is string && data.status.size() <= 20 && data.status in ['published', 'unpublished']
+        && isOptList(data, 'blocks', 60)
+        && isOptMap(data, 'theme')
+        && isOptMap(data, 'seo')
+        && isOptMap(data, 'tracking')
+        && isOptMap(data, 'whatsapp')
+        && isOptMap(data, 'paymentConfig')
+        && isOptMap(data, 'abTest')
+        && isOptMap(data, 'translations')
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPageVersion(data) {
+      return data.keys().hasAll(['ownerId', 'pageId', 'versionNumber', 'snapshot', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'pageId', 'versionNumber', 'note', 'snapshot', 'createdAt'])
+        && data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid
+        && data.pageId is string && data.pageId.size() >= 1 && data.pageId.size() <= 128
+        && (data.versionNumber is int || data.versionNumber is float)
+        && isOptString(data, 'note', 200)
+        && data.snapshot is map
+        && data.createdAt is timestamp;
+    }
+
+    function isValidUserTemplate(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'presellType', 'isFavorite', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'name', 'presellType', 'description', 'isFavorite', 'blocks', 'theme', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.presellType is string && data.presellType.size() >= 1 && data.presellType.size() <= 60
+        && isOptString(data, 'description', 400)
+        && data.isFavorite is bool
+        && isOptList(data, 'blocks', 60)
+        && isOptMap(data, 'theme')
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCampaign(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'platform', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'name', 'platform', 'pageId', 'utmSource', 'utmMedium', 'utmCampaign', 'targetCountry', 'dailyBudget', 'currency', 'status', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.platform is string && data.platform.size() <= 30 && data.platform in ['google_ads', 'meta_ads', 'tiktok_ads', 'native', 'seo']
+        && isOptString(data, 'pageId', 128)
+        && isOptString(data, 'utmSource', 100)
+        && isOptString(data, 'utmMedium', 100)
+        && isOptString(data, 'utmCampaign', 100)
+        && isOptString(data, 'targetCountry', 10)
+        && isOptNumber(data, 'dailyBudget')
+        && isOptString(data, 'currency', 10)
+        && data.status is string && data.status.size() <= 20 && data.status in ['active', 'paused']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidClickEvent(data) {
+      return data.keys().hasAll(['ownerId', 'publicKey', 'eventType', 'variant', 'language', 'country', 'device', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'pageId', 'publicKey', 'productId', 'eventType', 'variant', 'language', 'country', 'device', 'utmSource', 'utmMedium', 'utmCampaign', 'gateway', 'revenue', 'currency', 'createdAt'])
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128
+        && isOptString(data, 'pageId', 128)
+        && data.publicKey is string && data.publicKey.size() >= 1 && data.publicKey.size() <= 128
+        && isOptString(data, 'productId', 128)
+        && data.eventType is string && data.eventType.size() <= 30 && data.eventType in ['page_view', 'affiliate_click', 'whatsapp_click', 'checkout_start', 'conversion']
+        && data.variant is string && data.variant.size() <= 5 && data.variant in ['A', 'B']
+        && data.language is string && data.language.size() >= 1 && data.language.size() <= 16
+        && data.country is string && data.country.size() >= 1 && data.country.size() <= 16
+        && data.device is string && data.device.size() <= 16 && data.device in ['desktop', 'tablet', 'mobile']
+        && isOptString(data, 'utmSource', 100)
+        && isOptString(data, 'utmMedium', 100)
+        && isOptString(data, 'utmCampaign', 100)
+        && isOptString(data, 'gateway', 40)
+        && isOptNumber(data, 'revenue')
+        && isOptString(data, 'currency', 10)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidWhatsappWidget(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'phoneNumber', 'position', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'name', 'phoneNumber', 'prefilledMessage', 'position', 'buttonLabel', 'isActive', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.phoneNumber is string && data.phoneNumber.size() >= 5 && data.phoneNumber.size() <= 30
+        && isOptString(data, 'prefilledMessage', 300)
+        && data.position is string && data.position.size() <= 20 && data.position in ['bottom-right', 'bottom-left']
+        && isOptString(data, 'buttonLabel', 60)
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPaymentGateway(data) {
+      return data.keys().hasAll(['ownerId', 'provider', 'displayName', 'mode', 'isEnabled', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'provider', 'displayName', 'publicKeyOrAccount', 'checkoutBaseUrl', 'pixKey', 'supportedCurrencies', 'mode', 'isEnabled', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid
+        && data.provider is string && data.provider.size() <= 30 && data.provider in ['stripe', 'mercadopago', 'paypal', 'hotmart', 'kiwify', 'pagseguro']
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && isOptString(data, 'publicKeyOrAccount', 200)
+        && isOptString(data, 'checkoutBaseUrl', 1000)
+        && isOptString(data, 'pixKey', 200)
+        && isOptList(data, 'supportedCurrencies', 10)
+        && data.mode is string && data.mode.size() <= 20 && data.mode in ['live', 'sandbox']
+        && data.isEnabled is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserSettings(data) {
+      return data.keys().hasAll(['ownerId', 'autoDetectVisitorLang', 'defaultVisitorLang', 'preserveAffiliateParams', 'robotsIndexDefault', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'ga4MeasurementId', 'gtmContainerId', 'googleAdsId', 'googleAdsConversionLabel', 'metaPixelId', 'headScripts', 'bodyScripts', 'customDomain', 'autoDetectVisitorLang', 'defaultVisitorLang', 'preserveAffiliateParams', 'robotsIndexDefault', 'cookieConsentTextPt', 'cookieConsentTextEn', 'updatedAt'])
+        && data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid
+        && isOptString(data, 'ga4MeasurementId', 60)
+        && isOptString(data, 'gtmContainerId', 60)
+        && isOptString(data, 'googleAdsId', 60)
+        && isOptString(data, 'googleAdsConversionLabel', 80)
+        && isOptString(data, 'metaPixelId', 60)
+        && isOptString(data, 'headScripts', 5000)
+        && isOptString(data, 'bodyScripts', 5000)
+        && isOptString(data, 'customDomain', 200)
+        && data.autoDetectVisitorLang is bool
+        && data.defaultVisitorLang is string && data.defaultVisitorLang.size() <= 10 && data.defaultVisitorLang in ['pt', 'en', 'es']
+        && data.preserveAffiliateParams is bool
+        && data.robotsIndexDefault is bool
+        && isOptString(data, 'cookieConsentTextPt', 500)
+        && isOptString(data, 'cookieConsentTextEn', 500)
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isVerifiedUser() && isValidId(userId) && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(userId) && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoUrl', 'defaultLang', 'updatedAt']);
+      allow delete: if false;
+
+      match /private/info {
+        allow get: if isValidId(userId) && isOwner(userId);
+        allow list: if false;
+        allow create: if isVerifiedUser() && isValidId(userId) && isOwner(userId)
+          && isValidUserPrivateInfo(incoming())
+          && incoming().updatedAt == request.time;
+        allow update: if isVerifiedUser() && isValidId(userId) && isOwner(userId)
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'companyName', 'defaultPolicyEmail', 'updatedAt']);
+        allow delete: if false;
+      }
+    }
+
+    match /categories/{categoryId} {
+      allow get: if isValidId(categoryId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(categoryId) && isValidCategory(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(categoryId) && isValidCategory(incoming())
+        && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'slug', 'description', 'color', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(categoryId) && existing().ownerId == request.auth.uid;
+    }
+
+    match /products/{productId} {
+      allow get: if isValidId(productId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(productId) && isValidProduct(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(productId) && isValidProduct(incoming())
+        && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'imageUrl', 'categoryId', 'originCountry', 'country', 'language', 'network', 'affiliateUrl', 'price', 'currency', 'commissionRate', 'producerEmail', 'status', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(productId) && existing().ownerId == request.auth.uid;
+    }
+
+    match /affiliateLinks/{linkId} {
+      allow get: if isValidId(linkId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(linkId) && isValidAffiliateLink(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(linkId) && isValidAffiliateLink(incoming())
+        && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['productId', 'label', 'shortCode', 'destinationUrl', 'alternativeUrls', 'country', 'network', 'affiliateTag', 'utmSource', 'utmMedium', 'utmCampaign', 'buttonText', 'isPrimary', 'isActive', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(linkId) && existing().ownerId == request.auth.uid;
+    }
+
+    match /redirectLinks/{shortCode} {
+      allow get: if isValidId(shortCode) && (resource == null || existing().isActive == true || (isSignedIn() && existing().ownerId == request.auth.uid));
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(shortCode) && isValidRedirectLink(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(shortCode) && isValidRedirectLink(incoming())
+        && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['linkId', 'productId', 'shortCode', 'destinationUrl', 'utmSource', 'utmMedium', 'utmCampaign', 'isActive', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(shortCode) && existing().ownerId == request.auth.uid;
+    }
+
+    match /pages/{pageId} {
+      allow get: if isValidId(pageId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(pageId) && isValidPage(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(pageId) && isValidPage(incoming())
+        && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['parentPageId', 'productId', 'categoryId', 'templateId', 'title', 'slug', 'pageKind', 'presellType', 'funnelStage', 'language', 'originCountry', 'targetCountry', 'affiliateLinkId', 'affiliateUrl', 'policyEmailMode', 'policyEmail', 'ghostMode', 'status', 'sortOrder', 'publicKey', 'blocks', 'theme', 'seo', 'tracking', 'whatsapp', 'paymentConfig', 'abTest', 'translations', 'publishedAt', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(pageId) && existing().ownerId == request.auth.uid;
+    }
+
+    match /publishedPages/{publicKey} {
+      allow get: if isValidId(publicKey) && (resource == null || existing().status == 'published' || (isSignedIn() && existing().ownerId == request.auth.uid));
+      allow list: if existing().status == 'published' || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+      allow create: if isVerifiedUser() && isValidId(publicKey) && isValidPublishedPage(incoming())
+        && existsAfter(/databases/$(database)/documents/pages/$(incoming().pageId))
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(publicKey) && isValidPublishedPage(incoming())
+        && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['pageId', 'productId', 'publicKey', 'slug', 'title', 'pageKind', 'presellType', 'funnelStage', 'language', 'originCountry', 'targetCountry', 'affiliateUrl', 'policyEmail', 'ghostMode', 'status', 'blocks', 'theme', 'seo', 'tracking', 'whatsapp', 'paymentConfig', 'abTest', 'translations', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(publicKey) && existing().ownerId == request.auth.uid;
+    }
+
+    match /pageVersions/{versionId} {
+      allow get: if isValidId(versionId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(versionId) && isValidPageVersion(incoming())
+        && existsAfter(/databases/$(database)/documents/pages/$(incoming().pageId))
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isVerifiedUser() && isValidId(versionId) && existing().ownerId == request.auth.uid;
+    }
+
+    match /userTemplates/{templateId} {
+      allow get: if isValidId(templateId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(templateId) && isValidUserTemplate(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(templateId) && isValidUserTemplate(incoming())
+        && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'presellType', 'description', 'isFavorite', 'blocks', 'theme', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(templateId) && existing().ownerId == request.auth.uid;
+    }
+
+    match /campaigns/{campaignId} {
+      allow get: if isValidId(campaignId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(campaignId) && isValidCampaign(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(campaignId) && isValidCampaign(incoming())
+        && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'platform', 'pageId', 'utmSource', 'utmMedium', 'utmCampaign', 'targetCountry', 'dailyBudget', 'currency', 'status', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(campaignId) && existing().ownerId == request.auth.uid;
+    }
+
+    match /clickEvents/{eventId} {
+      allow get: if isValidId(eventId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(eventId) && isValidClickEvent(incoming())
+        && exists(/databases/$(database)/documents/publishedPages/$(incoming().publicKey))
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /whatsappWidgets/{widgetId} {
+      allow get: if isValidId(widgetId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(widgetId) && isValidWhatsappWidget(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(widgetId) && isValidWhatsappWidget(incoming())
+        && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phoneNumber', 'prefilledMessage', 'position', 'buttonLabel', 'isActive', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(widgetId) && existing().ownerId == request.auth.uid;
+    }
+
+    match /paymentGateways/{gatewayId} {
+      allow get: if isValidId(gatewayId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(gatewayId) && isValidPaymentGateway(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(gatewayId) && isValidPaymentGateway(incoming())
+        && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['provider', 'displayName', 'publicKeyOrAccount', 'checkoutBaseUrl', 'pixKey', 'supportedCurrencies', 'mode', 'isEnabled', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(gatewayId) && existing().ownerId == request.auth.uid;
+    }
+
+    match /userSettings/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isVerifiedUser() && isValidId(userId) && isOwner(userId)
+        && isValidUserSettings(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(userId) && isOwner(userId)
+        && isValidUserSettings(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['ga4MeasurementId', 'gtmContainerId', 'googleAdsId', 'googleAdsConversionLabel', 'metaPixelId', 'headScripts', 'bodyScripts', 'customDomain', 'autoDetectVisitorLang', 'defaultVisitorLang', 'preserveAffiliateParams', 'robotsIndexDefault', 'cookieConsentTextPt', 'cookieConsentTextEn', 'updatedAt']);
+      allow delete: if false;
+    }
+  }
+}

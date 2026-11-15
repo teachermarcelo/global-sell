@@ -1,0 +1,6 @@
+{
+  "name": "Global Presell Commerce",
+  "description": "Plataforma SaaS internacional para criação, gestão multilíngue, testes A/B e publicação de páginas de pré-venda (Presell), landing pages comerciais, links de afiliados e checkout direto.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

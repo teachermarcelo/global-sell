@@ -1,0 +1,388 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Publicly non-sensitive user workspace profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "plan": { "type": "string", "enum": ["starter", "pro", "enterprise"] },
+        "defaultLang": { "type": "string", "enum": ["pt", "en", "es"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "plan", "defaultLang", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII document for user email and workspace preferences",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "companyName": { "type": "string", "maxLength": 150 },
+        "defaultPolicyEmail": { "type": "string", "maxLength": 200 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Folder or category for organizing pages and products",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "slug": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[a-z0-9\\-]+$" },
+        "description": { "type": "string", "maxLength": 300 },
+        "color": { "type": "string", "maxLength": 30 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "slug", "createdAt", "updatedAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Affiliate or direct-sale product registered in Central de Produtos",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "imageUrl": { "type": "string", "maxLength": 1000 },
+        "categoryId": { "type": "string", "maxLength": 128 },
+        "originCountry": { "type": "string", "maxLength": 10 },
+        "country": { "type": "string", "minLength": 2, "maxLength": 10 },
+        "language": { "type": "string", "enum": ["pt", "en", "es", "auto"] },
+        "network": { "type": "string", "maxLength": 80 },
+        "affiliateUrl": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "price": { "type": "number" },
+        "currency": { "type": "string", "enum": ["BRL", "USD", "EUR", "GBP"] },
+        "commissionRate": { "type": "number" },
+        "producerEmail": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "enum": ["active", "paused", "archived"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "country", "language", "affiliateUrl", "price", "currency", "status", "createdAt", "updatedAt"]
+    },
+    "AffiliateLink": {
+      "title": "AffiliateLink",
+      "description": "Centralized traceable affiliate link with campaign parameters",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "shortCode": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "destinationUrl": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "alternativeUrls": { "type": "array" },
+        "country": { "type": "string", "maxLength": 10 },
+        "network": { "type": "string", "maxLength": 80 },
+        "affiliateTag": { "type": "string", "maxLength": 120 },
+        "utmSource": { "type": "string", "maxLength": 100 },
+        "utmMedium": { "type": "string", "maxLength": 100 },
+        "utmCampaign": { "type": "string", "maxLength": 100 },
+        "buttonText": { "type": "string", "maxLength": 80 },
+        "isPrimary": { "type": "boolean" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "label", "shortCode", "destinationUrl", "isActive", "createdAt", "updatedAt"]
+    },
+    "RedirectLink": {
+      "title": "RedirectLink",
+      "description": "Public non-PII projection for /go/{shortCode} traceable redirects",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "linkId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "shortCode": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "destinationUrl": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "utmSource": { "type": "string", "maxLength": 100 },
+        "utmMedium": { "type": "string", "maxLength": 100 },
+        "utmCampaign": { "type": "string", "maxLength": 100 },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "linkId", "shortCode", "destinationUrl", "isActive", "createdAt", "updatedAt"]
+    },
+    "Page": {
+      "title": "Page",
+      "description": "Presell, Landing Page, or Subpage managed by the user",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "parentPageId": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "categoryId": { "type": "string", "maxLength": 128 },
+        "templateId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "slug": { "type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[a-z0-9\\-]+$" },
+        "pageKind": { "type": "string", "enum": ["presell", "landing", "subpage", "comparison", "review"] },
+        "presellType": { "type": "string", "maxLength": 60 },
+        "funnelStage": { "type": "string", "enum": ["top", "middle", "bottom"] },
+        "language": { "type": "string", "enum": ["pt", "en", "es", "auto"] },
+        "originCountry": { "type": "string", "maxLength": 10 },
+        "targetCountry": { "type": "string", "maxLength": 10 },
+        "affiliateLinkId": { "type": "string", "maxLength": 128 },
+        "affiliateUrl": { "type": "string", "maxLength": 2000 },
+        "policyEmailMode": { "type": "string", "enum": ["producer", "custom"] },
+        "policyEmail": { "type": "string", "maxLength": 200 },
+        "ghostMode": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["draft", "published", "processing", "unpublished"] },
+        "sortOrder": { "type": "number" },
+        "publicKey": { "type": "string", "maxLength": 128 },
+        "blocks": { "type": "array" },
+        "theme": { "type": "object" },
+        "seo": { "type": "object" },
+        "tracking": { "type": "object" },
+        "whatsapp": { "type": "object" },
+        "paymentConfig": { "type": "object" },
+        "abTest": { "type": "object" },
+        "translations": { "type": "object" },
+        "publishedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "title", "slug", "pageKind", "presellType", "funnelStage", "language", "status", "ghostMode", "createdAt", "updatedAt"]
+    },
+    "PublishedPage": {
+      "title": "PublishedPage",
+      "description": "Public sanitized snapshot for external visitor rendering with hreflang and A/B testing",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "pageId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "publicKey": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "slug": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "pageKind": { "type": "string", "enum": ["presell", "landing", "subpage", "comparison", "review"] },
+        "presellType": { "type": "string", "maxLength": 60 },
+        "funnelStage": { "type": "string", "enum": ["top", "middle", "bottom"] },
+        "language": { "type": "string", "enum": ["pt", "en", "es", "auto"] },
+        "originCountry": { "type": "string", "maxLength": 10 },
+        "targetCountry": { "type": "string", "maxLength": 10 },
+        "affiliateUrl": { "type": "string", "maxLength": 2000 },
+        "policyEmail": { "type": "string", "maxLength": 200 },
+        "ghostMode": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["published", "unpublished"] },
+        "blocks": { "type": "array" },
+        "theme": { "type": "object" },
+        "seo": { "type": "object" },
+        "tracking": { "type": "object" },
+        "whatsapp": { "type": "object" },
+        "paymentConfig": { "type": "object" },
+        "abTest": { "type": "object" },
+        "translations": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "pageId", "publicKey", "slug", "title", "pageKind", "presellType", "language", "status", "ghostMode", "createdAt", "updatedAt"]
+    },
+    "PageVersion": {
+      "title": "PageVersion",
+      "description": "Revision snapshot for page history and rollback",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "pageId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "versionNumber": { "type": "number" },
+        "note": { "type": "string", "maxLength": 200 },
+        "snapshot": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "pageId", "versionNumber", "snapshot", "createdAt"]
+    },
+    "UserTemplate": {
+      "title": "UserTemplate",
+      "description": "User-saved, duplicated, or favorited page templates",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "presellType": { "type": "string", "maxLength": 60 },
+        "description": { "type": "string", "maxLength": 400 },
+        "isFavorite": { "type": "boolean" },
+        "blocks": { "type": "array" },
+        "theme": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "presellType", "isFavorite", "createdAt", "updatedAt"]
+    },
+    "Campaign": {
+      "title": "Campaign",
+      "description": "Google Ads / Paid Traffic campaign tracking record",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "platform": { "type": "string", "enum": ["google_ads", "meta_ads", "tiktok_ads", "native", "seo"] },
+        "pageId": { "type": "string", "maxLength": 128 },
+        "utmSource": { "type": "string", "maxLength": 100 },
+        "utmMedium": { "type": "string", "maxLength": 100 },
+        "utmCampaign": { "type": "string", "maxLength": 100 },
+        "targetCountry": { "type": "string", "maxLength": 10 },
+        "dailyBudget": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "status": { "type": "string", "enum": ["active", "paused"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "platform", "status", "createdAt", "updatedAt"]
+    },
+    "ClickEvent": {
+      "title": "ClickEvent",
+      "description": "Real-time visitor view, CTA click, A/B impression, and payment conversion telemetry",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "pageId": { "type": "string", "maxLength": 128 },
+        "publicKey": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "eventType": { "type": "string", "enum": ["page_view", "affiliate_click", "whatsapp_click", "checkout_start", "conversion"] },
+        "variant": { "type": "string", "enum": ["A", "B"] },
+        "language": { "type": "string", "maxLength": 16 },
+        "country": { "type": "string", "maxLength": 16 },
+        "device": { "type": "string", "enum": ["desktop", "tablet", "mobile"] },
+        "utmSource": { "type": "string", "maxLength": 100 },
+        "utmMedium": { "type": "string", "maxLength": 100 },
+        "utmCampaign": { "type": "string", "maxLength": 100 },
+        "gateway": { "type": "string", "maxLength": 40 },
+        "revenue": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "publicKey", "eventType", "variant", "language", "country", "device", "createdAt"]
+    },
+    "WhatsappWidget": {
+      "title": "WhatsappWidget",
+      "description": "Floating WhatsApp conversion button configuration",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "phoneNumber": { "type": "string", "minLength": 5, "maxLength": 30 },
+        "prefilledMessage": { "type": "string", "maxLength": 300 },
+        "position": { "type": "string", "enum": ["bottom-right", "bottom-left"] },
+        "buttonLabel": { "type": "string", "maxLength": 60 },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "phoneNumber", "position", "isActive", "createdAt", "updatedAt"]
+    },
+    "PaymentGateway": {
+      "title": "PaymentGateway",
+      "description": "Native payment gateway integration settings for direct checkout",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "provider": { "type": "string", "enum": ["stripe", "mercadopago", "paypal", "hotmart", "kiwify", "pagseguro"] },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "publicKeyOrAccount": { "type": "string", "maxLength": 200 },
+        "checkoutBaseUrl": { "type": "string", "maxLength": 1000 },
+        "pixKey": { "type": "string", "maxLength": 200 },
+        "supportedCurrencies": { "type": "array" },
+        "mode": { "type": "string", "enum": ["live", "sandbox"] },
+        "isEnabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "provider", "displayName", "mode", "isEnabled", "createdAt", "updatedAt"]
+    },
+    "UserWorkspaceSettings": {
+      "title": "UserWorkspaceSettings",
+      "description": "Global SEO, Scripts, Marketing IDs, Language and General settings per user",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ga4MeasurementId": { "type": "string", "maxLength": 60 },
+        "gtmContainerId": { "type": "string", "maxLength": 60 },
+        "googleAdsId": { "type": "string", "maxLength": 60 },
+        "googleAdsConversionLabel": { "type": "string", "maxLength": 80 },
+        "metaPixelId": { "type": "string", "maxLength": 60 },
+        "headScripts": { "type": "string", "maxLength": 5000 },
+        "bodyScripts": { "type": "string", "maxLength": 5000 },
+        "customDomain": { "type": "string", "maxLength": 200 },
+        "autoDetectVisitorLang": { "type": "boolean" },
+        "defaultVisitorLang": { "type": "string", "enum": ["pt", "en", "es"] },
+        "preserveAffiliateParams": { "type": "boolean" },
+        "robotsIndexDefault": { "type": "boolean" },
+        "cookieConsentTextPt": { "type": "string", "maxLength": 500 },
+        "cookieConsentTextEn": { "type": "string", "maxLength": 500 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "autoDetectVisitorLang", "defaultVisitorLang", "preserveAffiliateParams", "robotsIndexDefault", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Non-PII workspace profile"
+    },
+    "/users/{userId}/private/info": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Owner-only PII document"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "User categories"
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "User affiliate and direct-sale products"
+    },
+    "/affiliateLinks/{linkId}": {
+      "schema": { "$ref": "#/entities/AffiliateLink" },
+      "description": "User centralized affiliate links"
+    },
+    "/redirectLinks/{shortCode}": {
+      "schema": { "$ref": "#/entities/RedirectLink" },
+      "description": "Public redirect targets for /go/{shortCode}"
+    },
+    "/pages/{pageId}": {
+      "schema": { "$ref": "#/entities/Page" },
+      "description": "User presells, landing pages, and subpages"
+    },
+    "/publishedPages/{publicKey}": {
+      "schema": { "$ref": "#/entities/PublishedPage" },
+      "description": "Published external pages with multilingual & A/B testing support"
+    },
+    "/pageVersions/{versionId}": {
+      "schema": { "$ref": "#/entities/PageVersion" },
+      "description": "Version snapshots of user pages"
+    },
+    "/userTemplates/{templateId}": {
+      "schema": { "$ref": "#/entities/UserTemplate" },
+      "description": "Saved and favorited user templates"
+    },
+    "/campaigns/{campaignId}": {
+      "schema": { "$ref": "#/entities/Campaign" },
+      "description": "Paid traffic campaigns"
+    },
+    "/clickEvents/{eventId}": {
+      "schema": { "$ref": "#/entities/ClickEvent" },
+      "description": "Real-time page views, clicks, A/B impressions, and conversions"
+    },
+    "/whatsappWidgets/{widgetId}": {
+      "schema": { "$ref": "#/entities/WhatsappWidget" },
+      "description": "WhatsApp floating button configurations"
+    },
+    "/paymentGateways/{gatewayId}": {
+      "schema": { "$ref": "#/entities/PaymentGateway" },
+      "description": "Native payment gateway configurations"
+    },
+    "/userSettings/{userId}": {
+      "schema": { "$ref": "#/entities/UserWorkspaceSettings" },
+      "description": "Global SEO, analytics, language, and scripts configuration"
+    }
+  }
+}
