@@ -1,0 +1,174 @@
+{
+  "exportedAt": "2026-11-16T23:26:41.770Z",
+  "platform": "Global Presell Commerce",
+  "categories": [],
+  "products": [],
+  "pages": [
+    {
+      "id": "page_mwi1u1sl_a3ffi",
+      "whatsapp": {
+        "enabled": false
+      },
+      "language": "auto",
+      "funnelStage": "bottom",
+      "sortOrder": 0,
+      "publishedAt": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1794760266,
+        "nanoseconds": 156000000
+      },
+      "translations": {
+        "en": {
+          "metaDescription": "High-CTR centered cookie consent card over a clean editorial backdrop, compliant for Google Ads.",
+          "slug": "kartori",
+          "title": "Kartori",
+          "metaTitle": "Kartori",
+          "blocks": [
+            {
+              "body": "By clicking \"Accept & Continue to Official Website\", you consent to essential cookies and will be safely directed to the official manufacturer portal.",
+              "buttonText": "Accept & Continue to Official Website",
+              "title": "We value your privacy and cookie preferences",
+              "badgeText": "Verified Redirect",
+              "useAffiliateLink": true,
+              "type": "cookie_consent",
+              "id": "blk-cookie-1"
+            },
+            {
+              "body": "Affiliate Disclosure: This informational portal may earn a referral commission when you purchase through official partner links at no additional cost.",
+              "id": "blk-legal-1",
+              "type": "legal_footer"
+            }
+          ]
+        },
+        "pt": {
+          "slug": "kartori",
+          "metaTitle": "Kartori",
+          "blocks": [
+            {
+              "id": "blk-cookie-1",
+              "useAffiliateLink": true,
+              "badgeText": "Verificação de Segurança",
+              "type": "cookie_consent",
+              "body": "Ao clicar em \"Continuar para o Site Oficial\", você concorda com nossa política de cookies e será redirecionado com segurança para a página oficial do fabricante.",
+              "title": "Este site utiliza cookies para personalizar sua experiência",
+              "buttonText": "Aceitar e Continuar para o Site Oficial"
+            },
+            {
+              "id": "blk-legal-1",
+              "body": "Aviso de Transparência: Este site atua como portal informativo e pode receber comissão por indicação através de links de afiliados sem custo adicional para você.",
+              "type": "legal_footer"
+            }
+          ],
+          "metaDescription": "Caixa de consentimento centralizada de alta taxa de cliques sobre fundo editorial suave, ideal para Google Ads.",
+          "title": "Kartori"
+        }
+      },
+      "productId": "",
+      "affiliateLinkId": "",
+      "categoryId": "",
+      "slug": "kartori",
+      "blocks": [
+        {
+          "useAffiliateLink": true,
+          "buttonText": "Aceitar e Continuar para o Site Oficial",
+          "body": "Ao clicar em \"Continuar para o Site Oficial\", você concorda com nossa política de cookies e será redirecionado com segurança para a página oficial do fabricante.",
+          "title": "Este site utiliza cookies para personalizar sua experiência",
+          "badgeText": "Verificação de Segurança",
+          "id": "blk-cookie-1",
+          "type": "cookie_consent"
+        },
+        {
+          "body": "Aviso de Transparência: Este site atua como portal informativo e pode receber comissão por indicação através de links de afiliados sem custo adicional para você.",
+          "id": "blk-legal-1",
+          "type": "legal_footer"
+        }
+      ],
+      "createdAt": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1794760266,
+        "nanoseconds": 156000000
+      },
+      "parentPageId": "",
+      "updatedAt": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1794760266,
+        "nanoseconds": 156000000
+      },
+      "ownerId": "XeQlVvpo79cRuRdn9kFpUBcaJg03",
+      "templateId": "tpl-cookies-centered",
+      "abTest": {
+        "enabled": false,
+        "variantBHeadline": "Este site utiliza cookies para personalizar sua experiência",
+        "splitPercent": 50,
+        "variantBCtaText": "Aceitar e Continuar para o Site Oficial",
+        "variantBPrimaryColor": "#2563EB",
+        "variantBName": "Variante B"
+      },
+      "paymentConfig": {
+        "enabled": false
+      },
+      "ghostMode": false,
+      "pageKind": "presell",
+      "presellType": "cookies_centered",
+      "seo": {
+        "metaTitle": "Kartori",
+        "robotsIndex": true,
+        "protectedBrandTerms": [],
+        "metaDescription": "Ao clicar em \"Continuar para o Site Oficial\", você concorda com nossa política de cookies e será redirecionado com segurança para a página oficial do fabricante."
+      },
+      "theme": {
+        "showFooter": true,
+        "surfaceColor": "#FFFFFF",
+        "textColor": "#0F172A",
+        "showHeader": false,
+        "backgroundColor": "#F1F5F9",
+        "accentColor": "#16A34A",
+        "borderRadius": "md",
+        "primaryColor": "#0F172A",
+        "logoText": "Portal Oficial"
+      },
+      "targetCountry": "BR",
+      "publicKey": "kartori_XeQlVv_a3ffi",
+      "policyEmailMode": "producer",
+      "status": "published",
+      "originCountry": "US",
+      "affiliateUrl": "https://www.clickomundo.com/PJ6ZL9H/546X6MD/?uid=7529",
+      "policyEmail": "",
+      "title": "Kartori",
+      "tracking": {
+        "googleAdsId": "",
+        "ga4Id": "",
+        "utmCampaign": "kartori",
+        "utmSource": "google",
+        "gtmId": "",
+        "utmMedium": "cpc",
+        "googleAdsLabel": "",
+        "metaPixelId": ""
+      }
+    }
+  ],
+  "affiliateLinks": [],
+  "campaigns": [],
+  "settings": {
+    "googleAdsId": "",
+    "autoDetectVisitorLang": true,
+    "ga4MeasurementId": "",
+    "googleAdsConversionLabel": "",
+    "gtmContainerId": "",
+    "updatedAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1794758148,
+      "nanoseconds": 760000000
+    },
+    "metaPixelId": "",
+    "robotsIndexDefault": true,
+    "headScripts": "",
+    "preserveAffiliateParams": true,
+    "cookieConsentTextEn": "We use essential cookies to personalize your experience and verify secure official portal access.",
+    "ownerId": "XeQlVvpo79cRuRdn9kFpUBcaJg03",
+    "defaultVisitorLang": "pt",
+    "customDomain": "",
+    "bodyScripts": "",
+    "cookieConsentTextPt": "Utilizamos cookies essenciais para personalizar sua experiência e garantir a segurança do acesso oficial."
+  }
+}

@@ -649,14 +649,71 @@ const WorkspaceShell: React.FC = () => {
               campaigns={data.campaigns}
               onUpdateSettings={data.updateWorkspaceSettings}
               onImportProductsAndCategories={async (backup) => {
+                const catMap = new Map<string, string>();
+                const prodMap = new Map<string, string>();
+                const pageMap = new Map<string, string>();
+
                 if (backup.categories) {
                   for (const c of backup.categories) {
-                    if (c.name) await data.createCategory(c);
+                    if (c.name) {
+                      const newId = await data.createCategory(c);
+                      if (c.id && newId) catMap.set(c.id, newId);
+                    }
                   }
                 }
                 if (backup.products) {
                   for (const p of backup.products) {
-                    if (p.name && p.affiliateUrl) await data.createProduct(p);
+                    if (p.name && p.affiliateUrl) {
+                      const mappedCatId = p.categoryId ? catMap.get(p.categoryId) || p.categoryId : '';
+                      const newId = await data.createProduct({
+                        ...p,
+                        categoryId: mappedCatId,
+                      });
+                      if (p.id && newId) prodMap.set(p.id, newId);
+                    }
+                  }
+                }
+                if (backup.affiliateLinks) {
+                  for (const l of backup.affiliateLinks) {
+                    if (l.label && l.destinationUrl) {
+                      const mappedProdId = l.productId ? prodMap.get(l.productId) || l.productId : '';
+                      await data.saveAffiliateLink({
+                        ...l,
+                        productId: mappedProdId,
+                      });
+                    }
+                  }
+                }
+                if (backup.pages) {
+                  for (const pg of backup.pages) {
+                    if (pg.title && pg.slug) {
+                      const mappedProdId = pg.productId ? prodMap.get(pg.productId) || pg.productId : '';
+                      const mappedCatId = pg.categoryId ? catMap.get(pg.categoryId) || pg.categoryId : '';
+                      const newPageId = await data.savePage(
+                        {
+                          ...pg,
+                          productId: mappedProdId,
+                          categoryId: mappedCatId,
+                          publicKey: undefined,
+                          publishedAt: null,
+                        },
+                        undefined,
+                        pg.status === 'published',
+                        'Importação de backup'
+                      );
+                      if (pg.id && newPageId) pageMap.set(pg.id, newPageId);
+                    }
+                  }
+                }
+                if (backup.campaigns) {
+                  for (const cmp of backup.campaigns) {
+                    if (cmp.name) {
+                      const mappedPageId = cmp.pageId ? pageMap.get(cmp.pageId) || cmp.pageId : '';
+                      await data.saveCampaign({
+                        ...cmp,
+                        pageId: mappedPageId,
+                      });
+                    }
                   }
                 }
               }}

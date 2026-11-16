@@ -850,8 +850,15 @@ interface GeneralSettingsBackupViewProps {
   campaigns: Campaign[];
   onUpdateSettings: (patch: Partial<UserWorkspaceSettings>) => Promise<void>;
   onImportProductsAndCategories: (backup: {
-    categories?: Array<{ name: string; description?: string; color?: string }>;
-    products?: Array<Omit<Product, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'>>;
+    categories?: Array<{ id?: string; name: string; description?: string; color?: string }>;
+    products?: Array<
+      Omit<Product, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> & { id?: string }
+    >;
+    affiliateLinks?: Array<
+      Omit<AffiliateLink, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> & { id?: string }
+    >;
+    pages?: Array<Omit<PageItem, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> & { id?: string }>;
+    campaigns?: Array<Omit<Campaign, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'> & { id?: string }>;
   }) => Promise<void>;
 }
 
@@ -924,6 +931,9 @@ export const GeneralSettingsBackupView: React.FC<GeneralSettingsBackupViewProps>
       await onImportProductsAndCategories({
         categories: parsed.categories,
         products: parsed.products,
+        affiliateLinks: parsed.affiliateLinks,
+        pages: parsed.pages,
+        campaigns: parsed.campaigns,
       });
       setImportStatus(
         isPt
