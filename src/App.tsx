@@ -61,10 +61,41 @@ function parsePublicRoute(pathname: string):
 }
 
 const AuthGateScreen: React.FC = () => {
-  const { uiLang, setUiLang, signInWithGoogle, authError, unauthorizedDomain } = useAuth();
+  const {
+    uiLang,
+    setUiLang,
+    signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
+    supportsEmailAuth,
+    authError,
+    unauthorizedDomain,
+  } = useAuth();
   const [copiedDomain, setCopiedDomain] = useState(false);
+  const [emailMode, setEmailMode] = useState<'login' | 'signup'>('login');
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [nameInput, setNameInput] = useState('');
+  const [emailFeedback, setEmailFeedback] = useState<string | null>(null);
+  const [submittingEmail, setSubmittingEmail] = useState(false);
   const t = UI_LABELS[uiLang] || UI_LABELS.pt;
   const isPt = uiLang === 'pt';
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailFeedback(null);
+    setSubmittingEmail(true);
+    try {
+      if (emailMode === 'signup') {
+        const msg = await signUpWithEmail(emailInput, passwordInput, nameInput);
+        if (msg) setEmailFeedback(msg);
+      } else {
+        await signInWithEmail(emailInput, passwordInput);
+      }
+    } finally {
+      setSubmittingEmail(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col">
@@ -171,6 +202,12 @@ const AuthGateScreen: React.FC = () => {
             </div>
           )}
 
+          {emailFeedback && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
+              {emailFeedback}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-4 pt-2">
             <button
               onClick={signInWithGoogle}
@@ -179,6 +216,81 @@ const AuthGateScreen: React.FC = () => {
               <span>{t.signInGoogle}</span>
             </button>
           </div>
+
+          {supportsEmailAuth && (
+            <form
+              onSubmit={handleEmailAuth}
+              className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 max-w-md"
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-800">
+                  {emailMode === 'login'
+                    ? isPt
+                      ? 'Ou entrar com e-mail e senha'
+                      : 'Or sign in with email'
+                    : isPt
+                    ? 'Criar nova conta com e-mail'
+                    : 'Create account with email'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEmailMode((m) => (m === 'login' ? 'signup' : 'login'))}
+                  className="text-blue-600 hover:underline font-medium cursor-pointer"
+                >
+                  {emailMode === 'login'
+                    ? isPt
+                      ? 'Criar conta'
+                      : 'Sign up'
+                    : isPt
+                    ? 'Já tenho conta'
+                    : 'Sign in'}
+                </button>
+              </div>
+              {emailMode === 'signup' && (
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  placeholder={isPt ? 'Seu nome' : 'Your name'}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+                />
+              )}
+              <input
+                type="email"
+                required
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                placeholder="email@exemplo.com"
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+              />
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder={isPt ? 'Senha (mín. 6 caracteres)' : 'Password (min. 6 chars)'}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+              />
+              <button
+                type="submit"
+                disabled={submittingEmail}
+                className="w-full py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer"
+              >
+                {submittingEmail
+                  ? isPt
+                    ? 'Autenticando...'
+                    : 'Signing in...'
+                  : emailMode === 'login'
+                  ? isPt
+                    ? 'Entrar com E-mail'
+                    : 'Sign In'
+                  : isPt
+                  ? 'Cadastrar Conta'
+                  : 'Create Account'}
+              </button>
+            </form>
+          )}
 
           <div className="grid grid-cols-2 gap-4 pt-6 border-t border-slate-200 text-xs text-slate-600">
             <div className="flex items-start gap-2">

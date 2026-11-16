@@ -12,6 +12,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import { getPublicBaseUrl, getPublicPagePath, slugify } from '../../lib/i18n';
+import { isQuotaError } from '../../lib/firestoreRest';
 import { BUILTIN_TEMPLATES, BuiltInTemplate } from '../../lib/templates';
 import {
   AffiliateLink,
@@ -110,6 +111,7 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
   const [blocks, setBlocks] = useState<PageBlock[]>(() =>
     JSON.parse(JSON.stringify(isPt ? defaultTpl.blocksPt : defaultTpl.blocksEn))
   );
+  const [blocksCustomizedManually, setBlocksCustomizedManually] = useState(false);
   const [theme, setTheme] = useState<PageTheme>(() => ({ ...defaultTpl.theme }));
   const [enableWhatsapp, setEnableWhatsapp] = useState(false);
   const [whatsappWidgetId, setWhatsappWidgetId] = useState(whatsappWidgets[0]?.id || '');
@@ -128,6 +130,7 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
   // Step 4 state
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [readyModal, setReadyModal] = useState<{
     pageId: string;
     publicUrl: string;
@@ -164,16 +167,18 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
     }
   };
 
-  const applyTemplate = (tpl: BuiltInTemplate) => {
+  const applyTemplate = (tpl: BuiltInTemplate, targetLang: PageLanguageSetting = language) => {
     setSelectedTplId(tpl.id);
     setPresellType(tpl.presellType);
-    const sourceBlocks = language === 'en' ? tpl.blocksEn : tpl.blocksPt;
+    const sourceBlocks = targetLang === 'en' ? tpl.blocksEn : tpl.blocksPt;
     setBlocks(JSON.parse(JSON.stringify(sourceBlocks)));
+    setBlocksCustomizedManually(false);
     setTheme({ ...tpl.theme });
   };
 
   const handlePublishOrDraft = async (publishNow: boolean) => {
     setErrorMsg(null);
+    setQuotaExceeded(false);
     if (!pageTitle.trim()) {
       setErrorMsg(isPt ? 'Informe o nome da página.' : 'Please enter a page title.');
       return;
@@ -279,6 +284,13 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
               metaDescription: chosenTpl.descriptionEn,
               blocks: language === 'en' ? blocks : chosenTpl.blocksEn,
             },
+            es: {
+              title: pageTitle.trim(),
+              slug: finalSlug,
+              metaTitle: pageTitle.trim(),
+              metaDescription: chosenTpl.descriptionPt,
+              blocks: language === 'es' ? blocks : chosenTpl.blocksEn,
+            },
           },
         },
         undefined,
@@ -298,6 +310,9 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
         onDoneGoToPages();
       }
     } catch (err) {
+      if (isQuotaError(err)) {
+        setQuotaExceeded(true);
+      }
       const raw = err instanceof Error ? err.message : 'Erro ao publicar página.';
       try {
         const parsed = JSON.parse(raw) as { error?: string };
@@ -358,8 +373,37 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
       </div>
 
       {errorMsg && (
-        <div className="p-3.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
-          {errorMsg}
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-2">
+          <p className="font-semibold">{errorMsg}</p>
+          {quotaExceeded && (
+            <div className="space-y-1.5 text-slate-700 bg-white/80 rounded-lg p-3 border border-rose-200">
+              <p>
+                {isPt
+                  ? 'A cota diária gratuita de gravações no Firestore (Spark · Enterprise Edition) será reiniciada automaticamente amanhã.'
+                  : 'Your Firestore free daily write quota (Spark · Enterprise Edition) resets automatically tomorrow.'}
+              </p>
+              <div className="flex flex-wrap gap-3 pt-1">
+                <a
+                  href="https://console.firebase.google.com/project/gen-lang-client-0776430449/firestore/databases/ai-studio-067b9033-af01-4763-882a-5ee68780c262/data?openUpgradeDialog=true"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-semibold text-blue-700 underline"
+                >
+                  <span>{isPt ? 'Abrir Banco no Firebase Console' : 'Open Database in Firebase Console'}</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+                <a
+                  href="https://firebase.google.com/pricing#cloud-firestore"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-semibold text-slate-700 underline"
+                >
+                  <span>{isPt ? 'Ver Limites Spark / Enterprise' : 'View Spark / Enterprise Limits'}</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -516,7 +560,17 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
               </label>
               <select
                 value={language}
-                onChange={(e) => setLanguage(e.target.value as PageLanguageSetting)}
+                onChange={(e) => {
+                  const nextLang = e.target.value as PageLanguageSetting;
+                  setLanguage(nextLang);
+                  if (!blocksCustomizedManually) {
+                    const matched =
+                      BUILTIN_TEMPLATES.find((t) => t.id === selectedTplId) || BUILTIN_TEMPLATES[0];
+                    setBlocks(
+                      JSON.parse(JSON.stringify(nextLang === 'en' ? matched.blocksEn : matched.blocksPt))
+                    );
+                  }
+                }}
                 className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg bg-white"
               >
                 <option value="auto">{isPt ? 'Detectar automaticamente' : 'Auto-detect visitor language'}</option>
@@ -784,6 +838,7 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
                       type="text"
                       value={blocks[0].title || ''}
                       onChange={(e) => {
+                        setBlocksCustomizedManually(true);
                         const next = [...blocks];
                         next[0] = { ...next[0], title: e.target.value };
                         setBlocks(next);
@@ -799,6 +854,7 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
                       rows={3}
                       value={blocks[0].subtitle ?? blocks[0].body ?? ''}
                       onChange={(e) => {
+                        setBlocksCustomizedManually(true);
                         const next = [...blocks];
                         if (next[0].type === 'cookie_consent') {
                           next[0] = { ...next[0], body: e.target.value };
@@ -818,6 +874,7 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
                       type="text"
                       value={blocks[0].buttonText || ''}
                       onChange={(e) => {
+                        setBlocksCustomizedManually(true);
                         const next = [...blocks];
                         next[0] = { ...next[0], buttonText: e.target.value };
                         setBlocks(next);
@@ -1047,9 +1104,9 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
               <p className="font-semibold text-slate-900">{pageTitle || '—'}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">URL (PT / EN)</p>
+              <p className="text-xs text-slate-500">URL (PT / EN / ES)</p>
               <p className="font-mono text-xs text-slate-700">
-                /pt/{slugify(slug || pageTitle)} · /en/{slugify(slug || pageTitle)}
+                /pt/{slugify(slug || pageTitle)} · /en/{slugify(slug || pageTitle)} · /es/{slugify(slug || pageTitle)}
               </p>
             </div>
             <div>
@@ -1077,8 +1134,37 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
           </div>
 
           {errorMsg && (
-            <div className="p-3.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
-              {errorMsg}
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-2">
+              <p className="font-semibold">{errorMsg}</p>
+              {quotaExceeded && (
+                <div className="space-y-1.5 text-slate-700 bg-white/80 rounded-lg p-3 border border-rose-200">
+                  <p>
+                    {isPt
+                      ? 'A cota diária gratuita de gravações no Firestore (Spark · Enterprise Edition) será reiniciada automaticamente amanhã.'
+                      : 'Your Firestore free daily write quota (Spark · Enterprise Edition) resets automatically tomorrow.'}
+                  </p>
+                  <div className="flex flex-wrap gap-3 pt-1">
+                    <a
+                      href="https://console.firebase.google.com/project/gen-lang-client-0776430449/firestore/databases/ai-studio-067b9033-af01-4763-882a-5ee68780c262/data?openUpgradeDialog=true"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-semibold text-blue-700 underline"
+                    >
+                      <span>{isPt ? 'Abrir Banco no Firebase Console' : 'Open Database in Firebase Console'}</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                    <a
+                      href="https://firebase.google.com/pricing#cloud-firestore"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-semibold text-slate-700 underline"
+                    >
+                      <span>{isPt ? 'Ver Limites Spark / Enterprise' : 'View Spark / Enterprise Limits'}</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

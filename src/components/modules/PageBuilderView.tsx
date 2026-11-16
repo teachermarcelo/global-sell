@@ -16,6 +16,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { formatCurrency, slugify } from '../../lib/i18n';
+import { isQuotaError } from '../../lib/firestoreRest';
 import {
   BlockType,
   LanguageCode,
@@ -89,11 +90,13 @@ export const PageBuilderView: React.FC<PageBuilderViewProps> = ({
   const [versions, setVersions] = useState<PageVersion[]>([]);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [errorBanner, setErrorBanner] = useState<{ message: string; isQuota: boolean } | null>(null);
 
   useEffect(() => {
     if (activePage) {
       setDraft(JSON.parse(JSON.stringify(activePage)));
       setSelectedBlockId(activePage.blocks?.[0]?.id || null);
+      setErrorBanner(null);
     } else {
       setDraft(null);
     }
@@ -251,6 +254,7 @@ export const PageBuilderView: React.FC<PageBuilderViewProps> = ({
 
   const handleSave = async (publishNow: boolean) => {
     setSaving(true);
+    setErrorBanner(null);
     try {
       await onSavePage(
         {
@@ -264,6 +268,7 @@ export const PageBuilderView: React.FC<PageBuilderViewProps> = ({
           presellType: draft.presellType,
           funnelStage: draft.funnelStage,
           language: draft.language,
+          originCountry: draft.originCountry || 'BR',
           targetCountry: draft.targetCountry || 'BR',
           affiliateLinkId: draft.affiliateLinkId || '',
           affiliateUrl: draft.affiliateUrl || '',
@@ -288,12 +293,14 @@ export const PageBuilderView: React.FC<PageBuilderViewProps> = ({
       showToast(publishNow ? (isPt ? 'Página publicada!' : 'Published!') : isPt ? 'Salvo!' : 'Saved!');
     } catch (err) {
       const raw = err instanceof Error ? err.message : isPt ? 'Erro ao salvar página.' : 'Failed to save page.';
+      let cleanMsg = raw;
       try {
         const parsed = JSON.parse(raw) as { error?: string };
-        showToast(parsed.error || raw);
+        cleanMsg = parsed.error || raw;
       } catch {
-        showToast(raw);
+        // raw string
       }
+      setErrorBanner({ message: cleanMsg, isQuota: isQuotaError(err) });
     } finally {
       setSaving(false);
     }
@@ -398,6 +405,37 @@ export const PageBuilderView: React.FC<PageBuilderViewProps> = ({
           </button>
         </div>
       </div>
+
+      {errorBanner && (
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-2">
+          <p className="font-semibold">{errorBanner.message}</p>
+          {errorBanner.isQuota && (
+            <div className="flex flex-wrap gap-4 text-[11px] text-slate-700">
+              <span>
+                {isPt
+                  ? 'A cota diária gratuita de gravações será reiniciada automaticamente amanhã.'
+                  : 'Your free daily write quota resets automatically tomorrow.'}
+              </span>
+              <a
+                href="https://console.firebase.google.com/project/gen-lang-client-0776430449/firestore/databases/ai-studio-067b9033-af01-4763-882a-5ee68780c262/data?openUpgradeDialog=true"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-blue-700 underline"
+              >
+                {isPt ? 'Abrir Banco no Firebase Console' : 'Open Database in Firebase Console'}
+              </a>
+              <a
+                href="https://firebase.google.com/pricing#cloud-firestore"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-slate-700 underline"
+              >
+                {isPt ? 'Ver Limites Spark / Enterprise' : 'View Spark / Enterprise Limits'}
+              </a>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 3-Column Builder Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">

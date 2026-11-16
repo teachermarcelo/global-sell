@@ -142,7 +142,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       }
       setModalOpen(false);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Erro ao salvar produto.');
+      const raw = err instanceof Error ? err.message : 'Erro ao salvar produto.';
+      try {
+        const parsed = JSON.parse(raw) as { error?: string };
+        setErrorMsg(parsed.error || raw);
+      } catch {
+        setErrorMsg(raw);
+      }
     } finally {
       setSaving(false);
     }

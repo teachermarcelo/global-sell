@@ -1,4 +1,9 @@
-import { Timestamp } from 'firebase/firestore';
+export interface TimestampLike {
+  toMillis: () => number;
+  toDate: () => Date;
+  seconds?: number;
+  nanoseconds?: number;
+}
 
 export type LanguageCode = 'pt' | 'en' | 'es';
 export type PageLanguageSetting = LanguageCode | 'auto';
@@ -140,8 +145,8 @@ export interface UserProfile {
   photoUrl?: string;
   plan: 'starter' | 'pro' | 'enterprise';
   defaultLang: LanguageCode;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
 }
 
 export interface Category {
@@ -151,8 +156,8 @@ export interface Category {
   slug: string;
   description?: string;
   color?: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
 }
 
 export interface Product {
@@ -172,8 +177,8 @@ export interface Product {
   commissionRate?: number;
   producerEmail?: string;
   status: 'active' | 'paused' | 'archived';
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
 }
 
 export interface AffiliateLink {
@@ -193,8 +198,8 @@ export interface AffiliateLink {
   buttonText?: string;
   isPrimary?: boolean;
   isActive: boolean;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
 }
 
 export interface PageItem {
@@ -228,9 +233,9 @@ export interface PageItem {
   paymentConfig?: PagePaymentConfig;
   abTest?: ABTestConfig;
   translations?: Partial<Record<LanguageCode, PageTranslationContent>>;
-  publishedAt?: Timestamp | null;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  publishedAt?: TimestampLike | null;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
 }
 
 export interface PublishedPage {
@@ -258,8 +263,8 @@ export interface PublishedPage {
   paymentConfig?: PagePaymentConfig;
   abTest?: ABTestConfig;
   translations?: Partial<Record<LanguageCode, PageTranslationContent>>;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
 }
 
 export interface PageVersion {
@@ -269,7 +274,7 @@ export interface PageVersion {
   versionNumber: number;
   note?: string;
   snapshot: Record<string, unknown>;
-  createdAt: Timestamp;
+  createdAt: TimestampLike;
 }
 
 export interface UserTemplate {
@@ -281,8 +286,8 @@ export interface UserTemplate {
   isFavorite: boolean;
   blocks: PageBlock[];
   theme: PageTheme;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
 }
 
 export interface Campaign {
@@ -298,8 +303,8 @@ export interface Campaign {
   dailyBudget?: number;
   currency?: string;
   status: 'active' | 'paused';
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
 }
 
 export interface ClickEvent {
@@ -319,7 +324,7 @@ export interface ClickEvent {
   gateway?: string;
   revenue?: number;
   currency?: string;
-  createdAt: Timestamp;
+  createdAt: TimestampLike;
 }
 
 export interface WhatsappWidget {
@@ -331,8 +336,8 @@ export interface WhatsappWidget {
   position: 'bottom-right' | 'bottom-left';
   buttonLabel?: string;
   isActive: boolean;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
 }
 
 export interface PaymentGateway {
@@ -346,8 +351,8 @@ export interface PaymentGateway {
   supportedCurrencies?: string[];
   mode: 'live' | 'sandbox';
   isEnabled: boolean;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
 }
 
 export interface UserWorkspaceSettings {
@@ -366,7 +371,7 @@ export interface UserWorkspaceSettings {
   robotsIndexDefault: boolean;
   cookieConsentTextPt?: string;
   cookieConsentTextEn?: string;
-  updatedAt: Timestamp;
+  updatedAt: TimestampLike;
 }
 
 export type ActiveModule =

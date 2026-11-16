@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { ExternalLink } from 'lucide-react';
 import { db } from '../lib/firebase';
+import { GPC_TABLES, getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
 import { buildAffiliateRedirectUrl, sanitizeId } from '../lib/i18n';
 
 interface RedirectHandlerProps {
@@ -18,6 +19,47 @@ export const RedirectHandler: React.FC<RedirectHandlerProps> = ({ shortCode }) =
       try {
         const rawCode = decodeURIComponent(shortCode || '').split('/')[0].trim();
         const cleanCode = sanitizeId(rawCode);
+
+        if (isSupabaseConfigured) {
+          const supabase = getSupabaseClient();
+          let { data } = await supabase
+            .from(GPC_TABLES.redirectLinks)
+            .select('*')
+            .eq('short_code', cleanCode)
+            .eq('is_active', true)
+            .maybeSingle();
+
+          if (!data && cleanCode.toLowerCase() !== cleanCode) {
+            const lowerRes = await supabase
+              .from(GPC_TABLES.redirectLinks)
+              .select('*')
+              .eq('short_code', cleanCode.toLowerCase())
+              .eq('is_active', true)
+              .maybeSingle();
+            data = lowerRes.data;
+          }
+
+          if (!data) {
+            if (active) setStatus('error');
+            return;
+          }
+
+          const url = buildAffiliateRedirectUrl(
+            String(data.destination_url || ''),
+            {
+              utm_source: data.utm_source ? String(data.utm_source) : undefined,
+              utm_medium: data.utm_medium ? String(data.utm_medium) : undefined,
+              utm_campaign: data.utm_campaign ? String(data.utm_campaign) : undefined,
+            },
+            window.location.search
+          );
+          if (active) {
+            setTargetUrl(url);
+            window.location.replace(url);
+          }
+          return;
+        }
+
         let snap = await getDoc(doc(db, 'redirectLinks', cleanCode));
         if (!snap.exists() && cleanCode.toLowerCase() !== cleanCode) {
           snap = await getDoc(doc(db, 'redirectLinks', cleanCode.toLowerCase()));

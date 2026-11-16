@@ -23,6 +23,8 @@ import {
   X,
 } from 'lucide-react';
 import { db } from '../lib/firebase';
+import { GPC_TABLES, getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
+import { mapRowToPublishedPage } from '../lib/supabaseMappers';
 import {
   buildAffiliateRedirectUrl,
   detectVisitorCountry,
@@ -52,6 +54,41 @@ function logVisitorEvent(
   if (!page.ownerId || !page.publicKey) return;
   const eventId = `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const searchParams = new URLSearchParams(window.location.search);
+  const utmSource = (searchParams.get('utm_source') || page.tracking?.utmSource || 'direct').slice(0, 100);
+  const utmMedium = (searchParams.get('utm_medium') || page.tracking?.utmMedium || 'none').slice(0, 100);
+  const utmCampaign = (searchParams.get('utm_campaign') || page.tracking?.utmCampaign || '').slice(0, 100);
+  const gateway = (extra?.gateway || '').slice(0, 40);
+  const revenue = Number(extra?.revenue ?? 0);
+  const currency = (extra?.currency || page.paymentConfig?.currency || 'BRL').slice(0, 10);
+  const country = (detectVisitorCountry() || 'BR').slice(0, 16);
+  const device = detectVisitorDevice();
+  const language = (activeLang || 'pt').slice(0, 16);
+
+  if (isSupabaseConfigured) {
+    getSupabaseClient()
+      .from(GPC_TABLES.clickEvents)
+      .insert({
+        id: eventId,
+        owner_id: page.ownerId.slice(0, 128),
+        page_id: (page.pageId || '').slice(0, 128),
+        public_key: page.publicKey.slice(0, 128),
+        product_id: (page.productId || '').slice(0, 128),
+        event_type: eventType,
+        variant,
+        language,
+        country,
+        device,
+        utm_source: utmSource,
+        utm_medium: utmMedium,
+        utm_campaign: utmCampaign,
+        gateway,
+        revenue,
+        currency,
+      })
+      .then(() => undefined, () => undefined);
+    return;
+  }
+
   setDoc(doc(db, 'clickEvents', eventId), {
     ownerId: page.ownerId.slice(0, 128),
     pageId: (page.pageId || '').slice(0, 128),
@@ -59,15 +96,15 @@ function logVisitorEvent(
     productId: (page.productId || '').slice(0, 128),
     eventType,
     variant,
-    language: (activeLang || 'pt').slice(0, 16),
-    country: (detectVisitorCountry() || 'BR').slice(0, 16),
-    device: detectVisitorDevice(),
-    utmSource: (searchParams.get('utm_source') || page.tracking?.utmSource || 'direct').slice(0, 100),
-    utmMedium: (searchParams.get('utm_medium') || page.tracking?.utmMedium || 'none').slice(0, 100),
-    utmCampaign: (searchParams.get('utm_campaign') || page.tracking?.utmCampaign || '').slice(0, 100),
-    gateway: (extra?.gateway || '').slice(0, 40),
-    revenue: Number(extra?.revenue ?? 0),
-    currency: (extra?.currency || page.paymentConfig?.currency || 'BRL').slice(0, 10),
+    language,
+    country,
+    device,
+    utmSource,
+    utmMedium,
+    utmCampaign,
+    gateway,
+    revenue,
+    currency,
     createdAt: serverTimestamp(),
   }).catch(() => {
     // Non-blocking telemetry
@@ -109,6 +146,56 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
       const rawKey = decodeURIComponent(slugOrKey || '').split('/')[0].trim();
       const normalizedSlug = slugify(rawKey);
       try {
+        if (isSupabaseConfigured) {
+          const supabase = getSupabaseClient();
+          if (/^[a-zA-Z0-9_-]{1,128}$/.test(rawKey)) {
+            const { data: byKey } = await supabase
+              .from(GPC_TABLES.publishedPages)
+              .select('*')
+              .eq('public_key', rawKey)
+              .eq('status', 'published')
+              .maybeSingle();
+            if (byKey && !cancelled) {
+              setPage(mapRowToPublishedPage(byKey as Record<string, unknown>));
+              return;
+            }
+          }
+
+          const { data: bySlug } = await supabase
+            .from(GPC_TABLES.publishedPages)
+            .select('*')
+            .eq('slug', normalizedSlug)
+            .eq('status', 'published')
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (bySlug && !cancelled) {
+            setPage(mapRowToPublishedPage(bySlug as Record<string, unknown>));
+            return;
+          }
+
+          const lowerRaw = rawKey.toLowerCase();
+          if (lowerRaw && lowerRaw !== normalizedSlug) {
+            const { data: byRawSlug } = await supabase
+              .from(GPC_TABLES.publishedPages)
+              .select('*')
+              .eq('slug', lowerRaw)
+              .eq('status', 'published')
+              .order('updated_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (byRawSlug && !cancelled) {
+              setPage(mapRowToPublishedPage(byRawSlug as Record<string, unknown>));
+              return;
+            }
+          }
+
+          if (!cancelled) {
+            setNotFound(true);
+          }
+          return;
+        }
+
         // First try direct publicKey if valid Firestore ID
         if (/^[a-zA-Z0-9_-]{1,128}$/.test(rawKey)) {
           try {
@@ -125,6 +212,14 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
           }
         }
 
+        const pickNewestDoc = (docs: typeof snap.docs) => {
+          return [...docs].sort((a, b) => {
+            const ta = (a.data()?.updatedAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+            const tb = (b.data()?.updatedAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+            return tb - ta;
+          })[0];
+        };
+
         // Fallback to normalized slug lookup
         const q = query(
           collection(db, 'publishedPages'),
@@ -133,7 +228,7 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
         );
         const snap = await getDocs(q);
         if (!snap.empty && !cancelled) {
-          setPage(snap.docs[0].data() as PublishedPage);
+          setPage(pickNewestDoc(snap.docs).data() as PublishedPage);
           return;
         }
 
@@ -147,7 +242,7 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
           );
           const snap2 = await getDocs(q2);
           if (!snap2.empty && !cancelled) {
-            setPage(snap2.docs[0].data() as PublishedPage);
+            setPage(pickNewestDoc(snap2.docs).data() as PublishedPage);
             return;
           }
         }
@@ -198,7 +293,17 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
 
     if (!previewPage && !viewLoggedRef.current) {
       viewLoggedRef.current = true;
-      logVisitorEvent(page, 'page_view', assigned, activeLang);
+      const viewKey = `gpc_viewed_${page.publicKey}`;
+      let alreadyViewed = false;
+      try {
+        alreadyViewed = sessionStorage.getItem(viewKey) === '1';
+        if (!alreadyViewed) sessionStorage.setItem(viewKey, '1');
+      } catch {
+        // Ignore storage restrictions
+      }
+      if (!alreadyViewed) {
+        logVisitorEvent(page, 'page_view', assigned, activeLang);
+      }
     }
   }, [page, previewPage, activeLang]);
 
