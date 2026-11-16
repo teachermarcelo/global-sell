@@ -286,6 +286,14 @@ export const PageBuilderView: React.FC<PageBuilderViewProps> = ({
         publishNow ? 'Atualização publicada no Construtor' : 'Alterações salvas no Construtor'
       );
       showToast(publishNow ? (isPt ? 'Página publicada!' : 'Published!') : isPt ? 'Salvo!' : 'Saved!');
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : isPt ? 'Erro ao salvar página.' : 'Failed to save page.';
+      try {
+        const parsed = JSON.parse(raw) as { error?: string };
+        showToast(parsed.error || raw);
+      } catch {
+        showToast(raw);
+      }
     } finally {
       setSaving(false);
     }

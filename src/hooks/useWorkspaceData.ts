@@ -34,6 +34,20 @@ function makeId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function useWorkspaceData(uid: string | undefined) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -244,7 +258,11 @@ export function useWorkspaceData(uid: string | undefined) {
         const batch = writeBatch(db);
         const linkRef = doc(db, 'affiliateLinks', id);
         const redirectRef = doc(db, 'redirectLinks', cleanCode);
-        const existingRedirectSnap = await getDoc(redirectRef);
+        const existingRedirectSnap = await withTimeout(
+          getDoc(redirectRef),
+          10000,
+          'Tempo esgotado ao verificar código de redirecionamento.'
+        );
 
         const linkMutable = {
           productId: (input.productId || '').slice(0, 128),
@@ -296,7 +314,11 @@ export function useWorkspaceData(uid: string | undefined) {
           });
         }
 
-        await batch.commit();
+        await withTimeout(
+          batch.commit(),
+          15000,
+          'Tempo esgotado ao salvar link. Verifique sua conexão ou recarregue a página.'
+        );
         return id;
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `affiliateLinks/${id}`);
@@ -335,7 +357,13 @@ export function useWorkspaceData(uid: string | undefined) {
 
       try {
         const pubRef = doc(db, 'publishedPages', publicKey);
-        const existingPubSnap = existingPage?.publicKey ? await getDoc(pubRef) : null;
+        const existingPubSnap = existingPage?.publicKey
+          ? await withTimeout(
+              getDoc(pubRef),
+              10000,
+              'Tempo esgotado ao verificar página publicada.'
+            )
+          : null;
 
         const batch = writeBatch(db);
         const pageRef = doc(db, 'pages', pageId);
@@ -443,7 +471,11 @@ export function useWorkspaceData(uid: string | undefined) {
           createdAt: serverTimestamp(),
         });
 
-        await batch.commit();
+        await withTimeout(
+          batch.commit(),
+          15000,
+          'Tempo esgotado ao publicar no servidor. Verifique sua conexão com a internet ou recarregue a página e tente novamente.'
+        );
         return pageId;
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `pages/${pageId}`);
@@ -459,7 +491,13 @@ export function useWorkspaceData(uid: string | undefined) {
         page.publicKey || sanitizeId(`${page.slug}_${uid.slice(0, 6)}_${page.id.slice(-5)}`);
       try {
         const pubRef = doc(db, 'publishedPages', publicKey);
-        const existingPubSnap = page.publicKey ? await getDoc(pubRef) : null;
+        const existingPubSnap = page.publicKey
+          ? await withTimeout(
+              getDoc(pubRef),
+              10000,
+              'Tempo esgotado ao verificar página publicada.'
+            )
+          : null;
 
         const batch = writeBatch(db);
         const nextStatus = shouldPublish ? 'published' : 'unpublished';
@@ -508,7 +546,11 @@ export function useWorkspaceData(uid: string | undefined) {
           });
         }
 
-        await batch.commit();
+        await withTimeout(
+          batch.commit(),
+          15000,
+          'Tempo esgotado ao atualizar status da página. Verifique sua conexão e tente novamente.'
+        );
       } catch (err) {
         handleFirestoreError(err, OperationType.UPDATE, `pages/${page.id}`);
       }

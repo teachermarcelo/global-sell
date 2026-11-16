@@ -298,7 +298,13 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
         onDoneGoToPages();
       }
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Erro ao publicar página.');
+      const raw = err instanceof Error ? err.message : 'Erro ao publicar página.';
+      try {
+        const parsed = JSON.parse(raw) as { error?: string };
+        setErrorMsg(parsed.error || raw);
+      } catch {
+        setErrorMsg(raw);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -1069,6 +1075,12 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
               </p>
             </div>
           </div>
+
+          {errorMsg && (
+            <div className="p-3.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
+              {errorMsg}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
             <button
