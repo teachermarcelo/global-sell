@@ -100,6 +100,8 @@ export interface PageTracking {
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
+  autoRedirect?: boolean;
+  autoRedirectDelayMs?: number;
 }
 
 export interface PageWhatsappConfig {

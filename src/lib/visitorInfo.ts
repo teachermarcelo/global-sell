@@ -1,4 +1,4 @@
-import { ClickEvent } from '../types';
+import { ClickEvent, PageBlock, PageTracking, PresellType } from '../types';
 import { detectVisitorCountry } from './i18n';
 
 export interface VisitorGeo {
@@ -304,11 +304,37 @@ export function formatClickedElementLabel(element?: string, isPt: boolean = true
       return isPt ? 'Checkout Direto' : 'Direct Checkout';
     case 'redirect_link':
       return isPt ? 'Link Curto /go/' : 'Short /go/ Link';
+    case 'auto_redirect':
+      return isPt ? 'Redirecionamento Automático' : 'Auto Redirect (Pass-through)';
     case 'page_load':
       return isPt ? 'Abertura da Página' : 'Page Load';
     default:
       return element || (isPt ? 'Interação' : 'Interaction');
   }
+}
+
+export function isCookiePresellPage(page: {
+  presellType?: PresellType;
+  blocks?: PageBlock[];
+}): boolean {
+  if (
+    page.presellType === 'cookies_centered' ||
+    page.presellType === 'cookies_premium' ||
+    page.presellType === 'cookies_footer'
+  ) {
+    return true;
+  }
+  return Boolean(page.blocks?.some((b) => b.type === 'cookie_consent'));
+}
+
+export function shouldAutoRedirectPage(page: {
+  presellType?: PresellType;
+  blocks?: PageBlock[];
+  tracking?: PageTracking;
+}): boolean {
+  if (page.tracking?.autoRedirect === false) return false;
+  if (page.tracking?.autoRedirect === true) return true;
+  return isCookiePresellPage(page);
 }
 
 export function formatLocationSummary(ev: Pick<ClickEvent, 'city' | 'region' | 'country'>): string {

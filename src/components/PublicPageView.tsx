@@ -24,7 +24,7 @@ import { db } from '../lib/firebase';
 import { GPC_TABLES, getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
 import { mapRowToPublishedPage } from '../lib/supabaseMappers';
 import { recordVisitorEvent, waitWithTimeout } from '../lib/clickLogger';
-import { resolveVisitorGeo } from '../lib/visitorInfo';
+import { resolveVisitorGeo, shouldAutoRedirectPage } from '../lib/visitorInfo';
 import {
   buildAffiliateRedirectUrl,
   detectVisitorLanguage,
@@ -99,7 +99,10 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
   const [ghostTriggered, setGhostTriggered] = useState(false);
+  const [isAutoRedirecting, setIsAutoRedirecting] = useState(false);
   const viewLoggedRef = useRef(false);
+  const viewEventPromiseRef = useRef<Promise<void> | null>(null);
+  const autoRedirectStartedRef = useRef(false);
 
   useEffect(() => {
     if (!previewPage) {
@@ -277,11 +280,11 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
         // Ignore storage restrictions
       }
       if (!alreadyViewed) {
-        logVisitorEvent(page, 'page_view', assigned, activeLang, {
+        viewEventPromiseRef.current = logVisitorEvent(page, 'page_view', assigned, activeLang, {
           clickedElement: 'page_load',
           clickedLabel: page.title,
           clickedUrl: typeof window !== 'undefined' ? window.location.href : '',
-          awaitGeoMs: 1200,
+          awaitGeoMs: 600,
         });
       }
     }
@@ -347,17 +350,73 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
   }, [page, activeLang]);
 
   const affiliateDestination = useMemo(() => {
-    if (!page?.affiliateUrl) return '#';
+    const cookieBlockUrl = resolvedContent?.blocks?.find(
+      (b) => b.type === 'cookie_consent' && !b.useAffiliateLink && b.buttonUrl
+    )?.buttonUrl;
+    const rawUrl = page?.affiliateUrl || cookieBlockUrl || '';
+    if (!rawUrl) return '#';
     return buildAffiliateRedirectUrl(
-      page.affiliateUrl,
+      rawUrl,
       {
-        utm_source: page.tracking?.utmSource,
-        utm_medium: page.tracking?.utmMedium,
-        utm_campaign: page.tracking?.utmCampaign,
+        utm_source: page?.tracking?.utmSource,
+        utm_medium: page?.tracking?.utmMedium,
+        utm_campaign: page?.tracking?.utmCampaign,
       },
       window.location.search
     );
-  }, [page]);
+  }, [page, resolvedContent]);
+
+  // Automatic pass-through redirect (enabled by default for all Cookie Presells so leads are never lost)
+  useEffect(() => {
+    if (!page || previewPage || autoRedirectStartedRef.current) return;
+    if (!affiliateDestination || affiliateDestination === '#') return;
+    if (!shouldAutoRedirectPage(page)) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('noredirect') === '1' || params.get('stay') === '1') return;
+
+    autoRedirectStartedRef.current = true;
+    setIsAutoRedirecting(true);
+
+    let cancelled = false;
+    const configuredDelay = Number(page.tracking?.autoRedirectDelayMs ?? 600);
+    const delayMs = Number.isFinite(configuredDelay)
+      ? Math.min(Math.max(configuredDelay, 350), 5000)
+      : 600;
+
+    const primaryCookieBtn = resolvedContent?.blocks?.find((b) => b.type === 'cookie_consent')?.buttonText;
+    const startedAt = Date.now();
+
+    const runPassThrough = async () => {
+      const clickPromise = logVisitorEvent(page, 'affiliate_click', variant, activeLang, {
+        clickedElement: 'auto_redirect',
+        clickedLabel: primaryCookieBtn || page.title,
+        clickedUrl: affiliateDestination,
+        awaitGeoMs: 450,
+      });
+
+      const pendingTelemetry: Array<Promise<unknown>> = [clickPromise];
+      if (viewEventPromiseRef.current) {
+        pendingTelemetry.push(viewEventPromiseRef.current);
+      }
+
+      await waitWithTimeout(Promise.allSettled(pendingTelemetry), Math.max(delayMs, 650));
+
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < delayMs) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs - elapsed));
+      }
+
+      if (!cancelled) {
+        window.location.replace(affiliateDestination);
+      }
+    };
+
+    runPassThrough();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [page, previewPage, affiliateDestination, variant, activeLang, resolvedContent]);
 
   const handleAffiliateClick = async (
     customUrl?: string,
@@ -630,6 +689,13 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
                     <ExternalLink className="w-4 h-4" />
                   </button>
                 </div>
+                {isAutoRedirecting && (
+                  <p className="text-xs text-slate-500 pt-1">
+                    {isPt
+                      ? 'Redirecionando automaticamente para o site oficial...'
+                      : 'Automatically forwarding you to the official site...'}
+                  </p>
+                )}
               </section>
             );
           }

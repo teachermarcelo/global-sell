@@ -100,6 +100,8 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
   const [policyEmailMode, setPolicyEmailMode] = useState<'producer' | 'custom'>('producer');
   const [policyEmail, setPolicyEmail] = useState(initialProduct?.producerEmail || '');
   const [ghostMode, setGhostMode] = useState(false);
+  const [autoRedirect, setAutoRedirect] = useState(mode !== 'landing');
+  const [autoRedirectDelayMs, setAutoRedirectDelayMs] = useState(600);
 
   // Step 2 state
   const defaultTpl =
@@ -239,6 +241,8 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
             utmSource: 'google',
             utmMedium: 'cpc',
             utmCampaign: finalSlug,
+            autoRedirect,
+            autoRedirectDelayMs,
           },
           whatsapp: enableWhatsapp && selectedWa
             ? {
@@ -601,6 +605,38 @@ export const PresellWizardView: React.FC<PresellWizardViewProps> = ({
                 {isPt
                   ? 'Exibe acesso rápido ao link de afiliado ao detectar interação humana na página.'
                   : 'Surfaces instant affiliate continuation upon genuine human interaction.'}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                {isPt ? 'Passagem Automática (Não esperar clique)' : 'Auto Pass-Through Redirect'}
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={autoRedirect ? 'yes' : 'no'}
+                  onChange={(e) => setAutoRedirect(e.target.value === 'yes')}
+                  className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg bg-white"
+                >
+                  <option value="yes">{isPt ? 'Sim (Recomendado)' : 'Yes (Recommended)'}</option>
+                  <option value="no">{isPt ? 'Não (Esperar clique)' : 'No (Wait for click)'}</option>
+                </select>
+                <select
+                  value={autoRedirectDelayMs}
+                  disabled={!autoRedirect}
+                  onChange={(e) => setAutoRedirectDelayMs(Number(e.target.value))}
+                  className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg bg-white disabled:opacity-50"
+                >
+                  <option value={400}>{isPt ? '0,4s (Instantâneo)' : '0.4s (Instant)'}</option>
+                  <option value={600}>{isPt ? '0,6s (Rápido)' : '0.6s (Fast)'}</option>
+                  <option value={1200}>{isPt ? '1,2s (Suave)' : '1.2s (Smooth)'}</option>
+                  <option value={2500}>{isPt ? '2,5s (Moderado)' : '2.5s (Moderate)'}</option>
+                </select>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {isPt
+                  ? 'Registra o visitante, cidade, país e clique e redireciona automaticamente para o destino sem perder leads.'
+                  : 'Logs visitor geo & click and automatically forwards to the destination URL so no leads drop off.'}
               </p>
             </div>
 

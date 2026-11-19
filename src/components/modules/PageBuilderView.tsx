@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency, slugify } from '../../lib/i18n';
 import { isQuotaError } from '../../lib/firestoreRest';
+import { shouldAutoRedirectPage } from '../../lib/visitorInfo';
 import {
   BlockType,
   LanguageCode,
@@ -916,6 +917,61 @@ export const PageBuilderView: React.FC<PageBuilderViewProps> = ({
                 />
                 <span>{isPt ? 'Modo Fantasma Ativo' : 'Ghost Mode Enabled'}</span>
               </label>
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <label className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={shouldAutoRedirectPage(draft)}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        tracking: {
+                          ...draft.tracking,
+                          autoRedirect: e.target.checked,
+                          autoRedirectDelayMs: draft.tracking?.autoRedirectDelayMs ?? 600,
+                        },
+                      })
+                    }
+                  />
+                  <span>
+                    <strong className="block text-slate-900">
+                      {isPt ? 'Passagem Automática (sem esperar clique)' : 'Auto Pass-Through Redirect'}
+                    </strong>
+                    <span className="text-[11px] text-slate-500">
+                      {isPt
+                        ? 'Registra a visita/clique e redireciona automaticamente para o destino.'
+                        : 'Logs visit & click and automatically forwards visitors to destination.'}
+                    </span>
+                  </span>
+                </label>
+                {shouldAutoRedirectPage(draft) && (
+                  <div>
+                    <label className="block text-[11px] text-slate-600 mb-1">
+                      {isPt ? 'Tempo antes de redirecionar' : 'Redirect delay'}
+                    </label>
+                    <select
+                      value={draft.tracking?.autoRedirectDelayMs ?? 600}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          tracking: {
+                            ...draft.tracking,
+                            autoRedirect: true,
+                            autoRedirectDelayMs: Number(e.target.value),
+                          },
+                        })
+                      }
+                      className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                    >
+                      <option value={400}>{isPt ? 'Instantâneo (~0,4s)' : 'Instant (~0.4s)'}</option>
+                      <option value={600}>{isPt ? 'Rápido recomendado (~0,6s)' : 'Fast recommended (~0.6s)'}</option>
+                      <option value={1200}>{isPt ? 'Suave (~1,2s)' : 'Smooth (~1.2s)'}</option>
+                      <option value={2500}>{isPt ? 'Moderado (~2,5s)' : 'Moderate (~2.5s)'}</option>
+                    </select>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

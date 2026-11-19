@@ -6,6 +6,7 @@ import {
   detectTrafficSource,
   formatClickedElementLabel,
   formatLocationSummary,
+  shouldAutoRedirectPage,
 } from './visitorInfo.ts';
 
 test('detectBrowserAndOs identifies in-app browsers, mobile OS, and desktop browsers', () => {
@@ -97,4 +98,32 @@ test('formatClickedElementLabel and CSV export escape quotes and commas properly
   assert.ok(csv.includes('"Aceitar, ""Continuar"""'));
   assert.ok(csv.includes('São Paulo'));
   assert.ok(csv.includes('Kartori'));
+});
+
+test('shouldAutoRedirectPage auto-enables existing cookie presells while honoring explicit overrides', () => {
+  assert.equal(formatClickedElementLabel('auto_redirect', true), 'Redirecionamento Automático');
+
+  // Legacy cookie presells without tracking.autoRedirect automatically pass through
+  assert.equal(shouldAutoRedirectPage({ presellType: 'cookies_centered', tracking: {} }), true);
+  assert.equal(shouldAutoRedirectPage({ presellType: 'cookies_premium' }), true);
+  assert.equal(
+    shouldAutoRedirectPage({
+      presellType: 'review_page',
+      blocks: [{ id: 'b1', type: 'cookie_consent' }],
+    }),
+    true
+  );
+
+  // Explicit false disables pass-through even on cookie presells
+  assert.equal(
+    shouldAutoRedirectPage({ presellType: 'cookies_centered', tracking: { autoRedirect: false } }),
+    false
+  );
+
+  // Non-cookie pages stay manual unless explicitly enabled
+  assert.equal(shouldAutoRedirectPage({ presellType: 'review_page', blocks: [] }), false);
+  assert.equal(
+    shouldAutoRedirectPage({ presellType: 'review_page', tracking: { autoRedirect: true } }),
+    true
+  );
 });
