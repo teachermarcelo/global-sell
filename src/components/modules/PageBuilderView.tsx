@@ -18,6 +18,7 @@ import {
 import { formatCurrency, slugify } from '../../lib/i18n';
 import { isQuotaError } from '../../lib/firestoreRest';
 import { shouldAutoRedirectPage } from '../../lib/visitorInfo';
+import { SmartImage } from '../SmartImage';
 import {
   BlockType,
   LanguageCode,
@@ -615,11 +616,17 @@ export const PageBuilderView: React.FC<PageBuilderViewProps> = ({
                         </p>
                       )}
                       {block.imageUrl && (
-                        <img
+                        <SmartImage
                           src={block.imageUrl}
                           alt={block.title || 'Block'}
                           className="w-full h-24 object-cover rounded mt-1"
-                          referrerPolicy="no-referrer"
+                          fallback={
+                            <div className="w-full px-3 py-2.5 rounded mt-1 bg-amber-50 border border-amber-200 text-[11px] text-amber-800">
+                              {isPt
+                                ? 'Não foi possível carregar a imagem. Se for do Google Drive, compartilhe como "Qualquer pessoa com o link".'
+                                : 'Could not load image. If using Google Drive, set sharing to "Anyone with the link".'}
+                            </div>
+                          }
                         />
                       )}
                       {block.type === 'payment_checkout' && (
@@ -744,8 +751,14 @@ export const PageBuilderView: React.FC<PageBuilderViewProps> = ({
                     type="text"
                     value={selectedBlock.imageUrl || ''}
                     onChange={(e) => updateBlock(selectedBlock.id, { imageUrl: e.target.value })}
+                    placeholder="https://drive.google.com/file/d/... ou qualquer link"
                     className="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg"
                   />
+                  <p className="text-[11px] text-slate-500 leading-snug">
+                    {isPt
+                      ? 'Aceita qualquer link de imagem (URL direta, Google Drive ou Dropbox). No Drive, deixe como "Qualquer pessoa com o link".'
+                      : 'Accepts any image URL (direct link, Google Drive, or Dropbox). In Drive, set sharing to "Anyone with the link".'}
+                  </p>
                 </div>
               )}
 

@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildAffiliateRedirectUrl,
+  extractGoogleDriveFileId,
   formatCurrency,
   generatePixPayload,
+  getAssetUrlFallbacks,
   getPublicBaseUrl,
   getPublicPagePath,
   normalizeAssetUrl,
@@ -51,6 +53,52 @@ test('normalizeAssetUrl rewrites legacy /src/assets/images/ paths to /images/', 
     normalizeAssetUrl('/images/presell_hero_editorial_1794756577028.jpg'),
     '/images/presell_hero_editorial_1794756577028.jpg'
   );
+});
+
+test('normalizeAssetUrl and getAssetUrlFallbacks convert Google Drive, Dropbox, Imgur, and bare links', () => {
+  const fileId = '1hpUEjAbCdEfGhIjKlMnOpQrStUv';
+  assert.equal(
+    extractGoogleDriveFileId(`https://drive.google.com/file/d/${fileId}/view?usp=sharing`),
+    fileId
+  );
+  assert.equal(
+    extractGoogleDriveFileId(`https://drive.google.com/open?id=${fileId}`),
+    fileId
+  );
+  assert.equal(
+    extractGoogleDriveFileId(`drive.google.com/uc?export=download&id=${fileId}`),
+    fileId
+  );
+  assert.equal(
+    normalizeAssetUrl(`https://drive.google.com/file/d/${fileId}/view?usp=drive_link`),
+    `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`
+  );
+  assert.deepEqual(
+    getAssetUrlFallbacks(`https://drive.google.com/file/d/${fileId}/view?usp=sharing`),
+    [
+      `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`,
+      `https://lh3.googleusercontent.com/d/${fileId}=w1600`,
+      `https://drive.google.com/uc?export=view&id=${fileId}`,
+    ]
+  );
+
+  // Dropbox share link preserves rlkey and switches to raw=1
+  assert.equal(
+    normalizeAssetUrl('https://www.dropbox.com/scl/fi/abc123/photo.jpg?rlkey=xyz&dl=0'),
+    'https://www.dropbox.com/scl/fi/abc123/photo.jpg?rlkey=xyz&raw=1'
+  );
+
+  // Imgur single page link
+  assert.equal(normalizeAssetUrl('https://imgur.com/aBcDe12'), 'https://i.imgur.com/aBcDe12.jpg');
+
+  // Bare direct URL without protocol
+  assert.equal(
+    normalizeAssetUrl('cdn.exemplo.com/uploads/produto.webp'),
+    'https://cdn.exemplo.com/uploads/produto.webp'
+  );
+
+  // Data URL preserved untouched
+  assert.equal(normalizeAssetUrl('data:image/png;base64,abc123'), 'data:image/png;base64,abc123');
 });
 
 test('formatCurrency formats BRL and USD cleanly', () => {

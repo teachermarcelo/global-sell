@@ -30,9 +30,9 @@ import {
   detectVisitorLanguage,
   formatCurrency,
   generatePixPayload,
-  normalizeAssetUrl,
   slugify,
 } from '../lib/i18n';
+import { SmartImage } from './SmartImage';
 import { LanguageCode, PageBlock, PublishedPage } from '../types';
 
 interface PublicPageViewProps {
@@ -583,11 +583,10 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
           <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               {theme.logoUrl ? (
-                <img
-                  src={normalizeAssetUrl(theme.logoUrl)}
+                <SmartImage
+                  src={theme.logoUrl}
                   alt={theme.logoText || page.title}
                   className="h-8 w-auto object-contain"
-                  referrerPolicy="no-referrer"
                 />
               ) : null}
               <span className="font-display font-bold text-lg tracking-tight">
@@ -740,11 +739,10 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
                   </div>
                   {block.imageUrl && (
                     <div className="md:col-span-5 bg-slate-100 min-h-[240px]">
-                      <img
-                        src={normalizeAssetUrl(block.imageUrl)}
+                      <SmartImage
+                        src={block.imageUrl}
                         alt={displayTitle || page.title}
                         className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
                       />
                     </div>
                   )}
@@ -773,11 +771,10 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
           if (block.type === 'image' && block.imageUrl) {
             return (
               <section key={block.id} className="rounded-xl overflow-hidden border border-slate-200">
-                <img
-                  src={normalizeAssetUrl(block.imageUrl)}
+                <SmartImage
+                  src={block.imageUrl}
                   alt={block.title || page.title}
                   className="w-full max-h-[460px] object-cover"
-                  referrerPolicy="no-referrer"
                 />
                 {block.title && (
                   <p className="px-4 py-3 text-xs text-slate-500 bg-white border-t border-slate-100">

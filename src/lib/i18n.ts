@@ -261,11 +261,118 @@ export function generatePixPayload(pixKey: string, merchantName: string, amount:
   return `00020126580014BR.GOV.BCB.PIX0136${cleanKey}520400005303986540${amtStr.length}${amtStr}5802BR5913${cleanName}6009SAO PAULO62070503***6304A1B2`;
 }
 
+export function extractGoogleDriveFileId(url?: string): string | null {
+  if (!url) return null;
+  const trimmed = url.trim().replace(/^["']+|["']+$/g, '');
+  if (!trimmed) return null;
+
+  const candidate = /^(?:https?:)?\/\//i.test(trimmed)
+    ? trimmed.startsWith('//')
+      ? `https:${trimmed}`
+      : trimmed
+    : /^(?:drive\.google\.com|docs\.google\.com|drive\.usercontent\.google\.com|lh3\.googleusercontent\.com)\//i.test(trimmed)
+    ? `https://${trimmed}`
+    : '';
+
+  if (!candidate) return null;
+
+  try {
+    const parsed = new URL(candidate);
+    const host = parsed.hostname.toLowerCase();
+    const isGoogleDriveHost =
+      host === 'drive.google.com' ||
+      host === 'docs.google.com' ||
+      host === 'drive.usercontent.google.com' ||
+      host === 'lh3.googleusercontent.com';
+
+    if (!isGoogleDriveHost) return null;
+
+    // /file/d/<ID>/... or /d/<ID> (including lh3.googleusercontent.com/d/<ID>=w1600)
+    const pathMatch = parsed.pathname.match(/\/(?:file\/)?d\/([a-zA-Z0-9_-]{10,})/);
+    if (pathMatch?.[1]) {
+      return pathMatch[1];
+    }
+
+    // ?id=<ID> (open?id=..., uc?id=..., thumbnail?id=..., download?id=...)
+    const queryId = parsed.searchParams.get('id');
+    if (queryId && /^[a-zA-Z0-9_-]{10,}$/.test(queryId)) {
+      return queryId;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 export function normalizeAssetUrl(url?: string): string {
   if (!url) return '';
-  return url.startsWith('/src/assets/images/')
-    ? url.replace('/src/assets/images/', '/images/')
-    : url;
+  const cleaned = url.trim().replace(/^["']+|["']+$/g, '');
+  if (!cleaned) return '';
+
+  if (cleaned.startsWith('/src/assets/images/')) {
+    return cleaned.replace('/src/assets/images/', '/images/');
+  }
+
+  if (
+    cleaned.startsWith('/') && !cleaned.startsWith('//') ||
+    cleaned.startsWith('./') ||
+    cleaned.startsWith('../') ||
+    cleaned.startsWith('data:') ||
+    cleaned.startsWith('blob:')
+  ) {
+    return cleaned;
+  }
+
+  let candidate = cleaned;
+  if (candidate.startsWith('//')) {
+    candidate = `https:${candidate}`;
+  } else if (!/^https?:\/\//i.test(candidate) && /^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+(\/|$|\?)/.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+
+  const driveId = extractGoogleDriveFileId(candidate);
+  if (driveId) {
+    return `https://drive.google.com/thumbnail?id=${driveId}&sz=w1600`;
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    const host = parsed.hostname.toLowerCase();
+
+    // Dropbox share links -> direct raw image
+    if (host === 'dropbox.com' || host === 'www.dropbox.com') {
+      parsed.searchParams.delete('dl');
+      parsed.searchParams.set('raw', '1');
+      return parsed.toString();
+    }
+
+    // Imgur single-image page -> direct i.imgur.com image
+    if (host === 'imgur.com' || host === 'www.imgur.com') {
+      const imgurMatch = parsed.pathname.match(/^\/([a-zA-Z0-9]{5,12})\/?$/);
+      if (imgurMatch?.[1]) {
+        return `https://i.imgur.com/${imgurMatch[1]}.jpg`;
+      }
+    }
+
+    return parsed.toString();
+  } catch {
+    return candidate;
+  }
+}
+
+export function getAssetUrlFallbacks(url?: string): string[] {
+  if (!url || !url.trim()) return [];
+  const driveId = extractGoogleDriveFileId(url);
+  if (driveId) {
+    return [
+      `https://drive.google.com/thumbnail?id=${driveId}&sz=w1600`,
+      `https://lh3.googleusercontent.com/d/${driveId}=w1600`,
+      `https://drive.google.com/uc?export=view&id=${driveId}`,
+    ];
+  }
+  const normalized = normalizeAssetUrl(url);
+  return normalized ? [normalized] : [];
 }
 
 export function getPublicBaseUrl(customDomain?: string): string {

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '../../lib/i18n';
 import { Category, LanguageCode, PageItem, PageLanguageSetting, Product } from '../../types';
+import { SmartImage } from '../SmartImage';
 
 const STUDIO_IMAGES = [
   {
@@ -255,11 +256,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               >
                 <div className="aspect-[4/3] bg-slate-100 relative overflow-hidden">
                   {prod.imageUrl ? (
-                    <img
+                    <SmartImage
                       src={prod.imageUrl}
                       alt={prod.name}
                       className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
+                      fallback={
+                        <div className="w-full h-full flex items-center justify-center text-slate-400">
+                          <Package className="w-10 h-10" />
+                        </div>
+                      }
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -578,9 +583,30 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     type="text"
                     value={form.imageUrl}
                     onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                    placeholder="https://..."
+                    placeholder="https://drive.google.com/file/d/... ou qualquer link de imagem"
                     className="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg"
                   />
+                  <p className="text-[11px] text-slate-500">
+                    {isPt
+                      ? 'Aceita qualquer link (URL direta, Google Drive ou Dropbox). No Drive, compartilhe como "Qualquer pessoa com o link".'
+                      : 'Accepts any image URL (direct link, Google Drive, or Dropbox). In Drive, share as "Anyone with the link".'}
+                  </p>
+                  {form.imageUrl.trim() && (
+                    <div className="rounded-lg border border-slate-200 overflow-hidden bg-slate-50 h-28 flex items-center justify-center">
+                      <SmartImage
+                        src={form.imageUrl}
+                        alt={form.name || 'Preview'}
+                        className="w-full h-full object-cover"
+                        fallback={
+                          <span className="text-[11px] text-amber-700 px-3 text-center">
+                            {isPt
+                              ? 'Não foi possível carregar esta imagem. Verifique se o link está público ("Qualquer pessoa com o link" no Drive).'
+                              : 'Could not load image preview. Verify the link is publicly accessible.'}
+                          </span>
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="sm:col-span-2">
