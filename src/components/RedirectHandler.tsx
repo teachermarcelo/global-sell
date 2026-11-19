@@ -3,7 +3,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { ExternalLink } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { GPC_TABLES, getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
-import { buildAffiliateRedirectUrl, sanitizeId } from '../lib/i18n';
+import { buildAffiliateRedirectUrl, detectVisitorLanguage, sanitizeId } from '../lib/i18n';
+import { recordVisitorEvent, waitWithTimeout } from '../lib/clickLogger';
 
 interface RedirectHandlerProps {
   shortCode: string;
@@ -53,8 +54,33 @@ export const RedirectHandler: React.FC<RedirectHandlerProps> = ({ shortCode }) =
             },
             window.location.search
           );
+
+          const resolvedCode = String(data.short_code || cleanCode);
+          if (active) setTargetUrl(url);
+
+          await waitWithTimeout(
+            recordVisitorEvent({
+              ownerId: String(data.owner_id || ''),
+              pageId: String(data.link_id || ''),
+              publicKey: `go_${resolvedCode}`,
+              productId: data.product_id ? String(data.product_id) : '',
+              eventType: 'affiliate_click',
+              variant: 'A',
+              language: detectVisitorLanguage('pt'),
+              defaultUtmSource: data.utm_source ? String(data.utm_source) : undefined,
+              defaultUtmMedium: data.utm_medium ? String(data.utm_medium) : undefined,
+              defaultUtmCampaign: data.utm_campaign ? String(data.utm_campaign) : undefined,
+              clickedElement: 'redirect_link',
+              clickedLabel: `/go/${resolvedCode}`,
+              clickedUrl: url,
+              pageTitle: `Link /go/${resolvedCode}`,
+              pageSlug: `go/${resolvedCode}`,
+              awaitGeoMs: 350,
+            }),
+            500
+          );
+
           if (active) {
-            setTargetUrl(url);
             window.location.replace(url);
           }
           return;
@@ -78,8 +104,32 @@ export const RedirectHandler: React.FC<RedirectHandlerProps> = ({ shortCode }) =
           },
           window.location.search
         );
+        const resolvedCode = String(data.shortCode || cleanCode);
+        if (active) setTargetUrl(url);
+
+        await waitWithTimeout(
+          recordVisitorEvent({
+            ownerId: String(data.ownerId || ''),
+            pageId: String(data.linkId || ''),
+            publicKey: `go_${resolvedCode}`,
+            productId: data.productId ? String(data.productId) : '',
+            eventType: 'affiliate_click',
+            variant: 'A',
+            language: detectVisitorLanguage('pt'),
+            defaultUtmSource: data.utmSource,
+            defaultUtmMedium: data.utmMedium,
+            defaultUtmCampaign: data.utmCampaign,
+            clickedElement: 'redirect_link',
+            clickedLabel: `/go/${resolvedCode}`,
+            clickedUrl: url,
+            pageTitle: `Link /go/${resolvedCode}`,
+            pageSlug: `go/${resolvedCode}`,
+            awaitGeoMs: 350,
+          }),
+          500
+        );
+
         if (active) {
-          setTargetUrl(url);
           window.location.replace(url);
         }
       } catch {

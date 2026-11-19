@@ -227,7 +227,7 @@ CREATE TABLE IF NOT EXISTS public.gpc_campaigns (
 
 CREATE INDEX IF NOT EXISTS idx_gpc_campaigns_owner ON public.gpc_campaigns (owner_id);
 
--- 12. Click & Conversion Events (Public Insert for Published Page Visitors)
+-- 12. Click & Conversion Events (Public Insert for Published Page Visitors & /go/ Redirects)
 CREATE TABLE IF NOT EXISTS public.gpc_click_events (
   id TEXT PRIMARY KEY,
   owner_id TEXT NOT NULL,
@@ -237,8 +237,21 @@ CREATE TABLE IF NOT EXISTS public.gpc_click_events (
   event_type TEXT NOT NULL CHECK (event_type IN ('page_view', 'affiliate_click', 'whatsapp_click', 'checkout_start', 'conversion')),
   variant TEXT NOT NULL DEFAULT 'A' CHECK (variant IN ('A', 'B')),
   language TEXT NOT NULL DEFAULT 'pt',
+  browser_language TEXT NOT NULL DEFAULT '',
   country TEXT NOT NULL DEFAULT 'BR',
+  region TEXT NOT NULL DEFAULT '',
+  city TEXT NOT NULL DEFAULT '',
+  timezone TEXT NOT NULL DEFAULT '',
   device TEXT NOT NULL DEFAULT 'desktop' CHECK (device IN ('desktop', 'tablet', 'mobile')),
+  browser TEXT NOT NULL DEFAULT '',
+  os TEXT NOT NULL DEFAULT '',
+  referrer TEXT NOT NULL DEFAULT '',
+  traffic_source TEXT NOT NULL DEFAULT '',
+  clicked_element TEXT NOT NULL DEFAULT '',
+  clicked_label TEXT NOT NULL DEFAULT '',
+  clicked_url TEXT NOT NULL DEFAULT '',
+  page_title TEXT NOT NULL DEFAULT '',
+  page_slug TEXT NOT NULL DEFAULT '',
   utm_source TEXT NOT NULL DEFAULT 'direct',
   utm_medium TEXT NOT NULL DEFAULT 'none',
   utm_campaign TEXT NOT NULL DEFAULT '',
@@ -249,6 +262,7 @@ CREATE TABLE IF NOT EXISTS public.gpc_click_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_gpc_click_events_owner ON public.gpc_click_events (owner_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_gpc_click_events_owner_product ON public.gpc_click_events (owner_id, product_id, created_at DESC);
 
 -- 13. WhatsApp Widgets
 CREATE TABLE IF NOT EXISTS public.gpc_whatsapp_widgets (
@@ -443,9 +457,15 @@ CREATE POLICY "gpc_click_events_public_insert" ON public.gpc_click_events
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.gpc_published_pages p
-      WHERE p.public_key = public_key
-        AND p.owner_id = owner_id
+      WHERE p.public_key = gpc_click_events.public_key
+        AND p.owner_id = gpc_click_events.owner_id
         AND p.status = 'published'
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.gpc_redirect_links r
+      WHERE ('go_' || r.short_code) = gpc_click_events.public_key
+        AND r.owner_id = gpc_click_events.owner_id
+        AND r.is_active = true
     )
   );
 

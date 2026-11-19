@@ -258,7 +258,7 @@ service cloud.firestore {
 
     function isValidClickEvent(data) {
       return data.keys().hasAll(['ownerId', 'publicKey', 'eventType', 'variant', 'language', 'country', 'device', 'createdAt'])
-        && data.keys().hasOnly(['ownerId', 'pageId', 'publicKey', 'productId', 'eventType', 'variant', 'language', 'country', 'device', 'utmSource', 'utmMedium', 'utmCampaign', 'gateway', 'revenue', 'currency', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'pageId', 'publicKey', 'productId', 'eventType', 'variant', 'language', 'browserLanguage', 'country', 'region', 'city', 'timezone', 'device', 'browser', 'os', 'referrer', 'trafficSource', 'clickedElement', 'clickedLabel', 'clickedUrl', 'pageTitle', 'pageSlug', 'utmSource', 'utmMedium', 'utmCampaign', 'gateway', 'revenue', 'currency', 'createdAt'])
         && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128
         && isOptString(data, 'pageId', 128)
         && data.publicKey is string && data.publicKey.size() >= 1 && data.publicKey.size() <= 128
@@ -266,8 +266,21 @@ service cloud.firestore {
         && data.eventType is string && data.eventType.size() <= 30 && data.eventType in ['page_view', 'affiliate_click', 'whatsapp_click', 'checkout_start', 'conversion']
         && data.variant is string && data.variant.size() <= 5 && data.variant in ['A', 'B']
         && data.language is string && data.language.size() >= 1 && data.language.size() <= 16
+        && isOptString(data, 'browserLanguage', 24)
         && data.country is string && data.country.size() >= 1 && data.country.size() <= 16
+        && isOptString(data, 'region', 80)
+        && isOptString(data, 'city', 80)
+        && isOptString(data, 'timezone', 64)
         && data.device is string && data.device.size() <= 16 && data.device in ['desktop', 'tablet', 'mobile']
+        && isOptString(data, 'browser', 60)
+        && isOptString(data, 'os', 60)
+        && isOptString(data, 'referrer', 500)
+        && isOptString(data, 'trafficSource', 80)
+        && isOptString(data, 'clickedElement', 60)
+        && isOptString(data, 'clickedLabel', 160)
+        && isOptString(data, 'clickedUrl', 1000)
+        && isOptString(data, 'pageTitle', 160)
+        && isOptString(data, 'pageSlug', 120)
         && isOptString(data, 'utmSource', 100)
         && isOptString(data, 'utmMedium', 100)
         && isOptString(data, 'utmCampaign', 100)
@@ -468,7 +481,13 @@ service cloud.firestore {
       allow get: if isValidId(eventId) && isSignedIn() && existing().ownerId == request.auth.uid;
       allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(eventId) && isValidClickEvent(incoming())
-        && exists(/databases/$(database)/documents/publishedPages/$(incoming().publicKey))
+        && (
+          exists(/databases/$(database)/documents/publishedPages/$(incoming().publicKey))
+          || (
+            incoming().publicKey.matches('^go_[a-zA-Z0-9_\\-]+$')
+            && exists(/databases/$(database)/documents/redirectLinks/$(incoming().publicKey.replace('^go_', '')))
+          )
+        )
         && incoming().createdAt == request.time;
       allow update: if false;
       allow delete: if false;

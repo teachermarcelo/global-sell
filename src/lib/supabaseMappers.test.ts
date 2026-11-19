@@ -158,8 +158,31 @@ test('remaining mappers handle defaults safely', () => {
     public_key: 'pk1',
     event_type: 'conversion',
     revenue: '197',
+    city: 'Curitiba',
+    region: 'PR',
+    country: 'BR',
+    timezone: 'America/Sao_Paulo',
+    browser_language: 'pt-BR',
+    browser: 'Chrome',
+    os: 'Android',
+    referrer: 'https://www.google.com/',
+    traffic_source: 'Google Ads',
+    clicked_element: 'cookie_consent',
+    clicked_label: 'Aceitar e Continuar',
+    clicked_url: 'https://example.com/offer',
+    page_title: 'Kartori',
+    page_slug: 'kartori',
   });
   assert.equal(evt.revenue, 197);
+  assert.equal(evt.city, 'Curitiba');
+  assert.equal(evt.region, 'PR');
+  assert.equal(evt.browser, 'Chrome');
+  assert.equal(evt.os, 'Android');
+  assert.equal(evt.trafficSource, 'Google Ads');
+  assert.equal(evt.clickedElement, 'cookie_consent');
+  assert.equal(evt.clickedLabel, 'Aceitar e Continuar');
+  assert.equal(evt.pageTitle, 'Kartori');
+  assert.equal(evt.pageSlug, 'kartori');
 
   const wa = mapRowToWhatsappWidget({
     id: 'wa1',

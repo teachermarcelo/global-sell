@@ -1,15 +1,26 @@
 import React, { useMemo, useState } from 'react';
 import {
   Check,
+  Compass,
   Copy,
+  Download,
   Edit3,
   ExternalLink,
   GitBranch,
+  MapPin,
+  MousePointerClick,
   Plus,
+  Search,
   Trash2,
   X,
 } from 'lucide-react';
 import { formatCurrency, getPublicBaseUrl, slugify } from '../../lib/i18n';
+import {
+  buildClickEventsCsv,
+  formatClickedElementLabel,
+  formatEventTypeLabel,
+  formatLocationSummary,
+} from '../../lib/visitorInfo';
 import {
   AffiliateLink,
   Campaign,
@@ -378,129 +389,624 @@ interface ClickTrackingViewProps {
   uiLang: LanguageCode;
   clickEvents: ClickEvent[];
   pages: PageItem[];
+  products?: Product[];
+  affiliateLinks?: AffiliateLink[];
 }
 
 export const ClickTrackingView: React.FC<ClickTrackingViewProps> = ({
   uiLang,
   clickEvents,
   pages,
+  products = [],
+  affiliateLinks = [],
 }) => {
   const isPt = uiLang === 'pt';
+  const [searchTerm, setSearchTerm] = useState('');
   const [eventFilter, setEventFilter] = useState('all');
+  const [productFilter, setProductFilter] = useState('all');
+  const [pageFilter, setPageFilter] = useState('all');
+  const [countryFilter, setCountryFilter] = useState('all');
   const [deviceFilter, setDeviceFilter] = useState('all');
+  const [selectedEvent, setSelectedEvent] = useState<ClickEvent | null>(null);
 
-  const sortedEvents = useMemo(() => {
-    return clickEvents
-      .filter((ev) => {
-        const matchEv = eventFilter === 'all' || ev.eventType === eventFilter;
+  const pageById = useMemo(() => {
+    const map = new Map<string, PageItem>();
+    pages.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [pages]);
+
+  const pageByPublicKey = useMemo(() => {
+    const map = new Map<string, PageItem>();
+    pages.forEach((p) => {
+      if (p.publicKey) map.set(p.publicKey, p);
+    });
+    return map;
+  }, [pages]);
+
+  const productById = useMemo(() => {
+    const map = new Map<string, Product>();
+    products.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [products]);
+
+  const linkByShortKey = useMemo(() => {
+    const map = new Map<string, AffiliateLink>();
+    affiliateLinks.forEach((l) => map.set(`go_${l.shortCode}`, l));
+    return map;
+  }, [affiliateLinks]);
+
+  const enrichedEvents = useMemo(() => {
+    return clickEvents.map((ev) => {
+      const pg =
+        (ev.pageId ? pageById.get(ev.pageId) : undefined) ||
+        (ev.publicKey ? pageByPublicKey.get(ev.publicKey) : undefined);
+      const link = ev.publicKey ? linkByShortKey.get(ev.publicKey) : undefined;
+      const resolvedProductId = ev.productId || pg?.productId || link?.productId || '';
+      const prod = resolvedProductId ? productById.get(resolvedProductId) : undefined;
+      const productName = prod?.name || '';
+      const pageTitle =
+        pg?.title ||
+        ev.pageTitle ||
+        (link
+          ? `Link /go/${link.shortCode}`
+          : ev.publicKey.startsWith('go_')
+          ? `Link /${ev.publicKey.replace(/^go_/, 'go/')}`
+          : ev.pageId || 'Página Pública');
+      const pageSlug =
+        pg?.slug ||
+        ev.pageSlug ||
+        (link ? `go/${link.shortCode}` : '');
+      const resolvedPageKey = pg?.id || ev.pageId || ev.publicKey;
+      return {
+        ev,
+        pg,
+        link,
+        prod,
+        resolvedProductId,
+        productName,
+        pageTitle,
+        pageSlug,
+        resolvedPageKey,
+      };
+    });
+  }, [clickEvents, pageById, pageByPublicKey, linkByShortKey, productById]);
+
+  const availableCountries = useMemo(() => {
+    const set = new Set<string>();
+    clickEvents.forEach((e) => {
+      if (e.country) set.add(e.country.toUpperCase());
+    });
+    return [...set].sort();
+  }, [clickEvents]);
+
+  const filteredEvents = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return enrichedEvents
+      .filter(({ ev, resolvedProductId, productName, pageTitle, pageSlug, resolvedPageKey }) => {
+        const matchEv =
+          eventFilter === 'all'
+            ? true
+            : eventFilter === 'clicks_only'
+            ? ev.eventType !== 'page_view'
+            : ev.eventType === eventFilter;
+        const matchProd =
+          productFilter === 'all' || resolvedProductId === productFilter;
+        const matchPage =
+          pageFilter === 'all' || resolvedPageKey === pageFilter;
+        const matchCountry =
+          countryFilter === 'all' || (ev.country || 'BR').toUpperCase() === countryFilter;
         const matchDev = deviceFilter === 'all' || ev.device === deviceFilter;
-        return matchEv && matchDev;
+
+        if (!matchEv || !matchProd || !matchPage || !matchCountry || !matchDev) return false;
+        if (!q) return true;
+
+        const haystack = [
+          productName,
+          pageTitle,
+          pageSlug,
+          ev.city,
+          ev.region,
+          ev.country,
+          ev.language,
+          ev.browserLanguage,
+          ev.clickedElement,
+          ev.clickedLabel,
+          ev.clickedUrl,
+          ev.trafficSource,
+          ev.browser,
+          ev.os,
+          ev.referrer,
+          ev.utmSource,
+          ev.utmCampaign,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(q);
       })
       .sort((a, b) => {
-        const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-        const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        const ta = a.ev.createdAt?.toMillis ? a.ev.createdAt.toMillis() : 0;
+        const tb = b.ev.createdAt?.toMillis ? b.ev.createdAt.toMillis() : 0;
         return tb - ta;
       });
-  }, [clickEvents, eventFilter, deviceFilter]);
+  }, [
+    enrichedEvents,
+    eventFilter,
+    productFilter,
+    pageFilter,
+    countryFilter,
+    deviceFilter,
+    searchTerm,
+  ]);
 
-  const getPageTitle = (pageId?: string) =>
-    pages.find((p) => p.id === pageId)?.title || pageId || 'Página Pública';
+  const summary = useMemo(() => {
+    const views = filteredEvents.filter((x) => x.ev.eventType === 'page_view').length;
+    const outboundClicks = filteredEvents.filter(
+      (x) => x.ev.eventType === 'affiliate_click' || x.ev.eventType === 'whatsapp_click'
+    ).length;
+    const countries = new Set(filteredEvents.map((x) => (x.ev.country || 'BR').toUpperCase()));
+    const cities = new Set(filteredEvents.map((x) => x.ev.city).filter(Boolean));
+    const sourceCounts = new Map<string, number>();
+    filteredEvents.forEach((x) => {
+      const src =
+        x.ev.trafficSource ||
+        (x.ev.utmSource && x.ev.utmSource !== 'direct' ? x.ev.utmSource : 'Direct');
+      sourceCounts.set(src, (sourceCounts.get(src) || 0) + 1);
+    });
+    const topSource = [...sourceCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+    const ctr = views > 0 ? (outboundClicks / views) * 100 : 0;
+    return {
+      total: filteredEvents.length,
+      views,
+      outboundClicks,
+      ctr,
+      countryCount: countries.size,
+      cityCount: cities.size,
+      topSource,
+    };
+  }, [filteredEvents]);
+
+  const handleExportCsv = () => {
+    const csv = buildClickEventsCsv(
+      filteredEvents.map(({ ev, productName, pageTitle, pageSlug }) => ({
+        timestamp: ev.createdAt?.toDate ? ev.createdAt.toDate().toISOString() : '',
+        eventType: ev.eventType,
+        clickedElement: ev.clickedElement || '',
+        clickedLabel: ev.clickedLabel || '',
+        clickedUrl: ev.clickedUrl || '',
+        productName: productName || '',
+        pageTitle,
+        pageSlug,
+        city: ev.city || '',
+        region: ev.region || '',
+        country: (ev.country || 'BR').toUpperCase(),
+        language: (ev.language || 'pt').toUpperCase(),
+        browserLanguage: ev.browserLanguage || '',
+        device: ev.device,
+        browser: ev.browser || '',
+        os: ev.os || '',
+        trafficSource: ev.trafficSource || ev.utmSource || 'Direct',
+        referrer: ev.referrer || '',
+        utmSource: ev.utmSource || '',
+        utmMedium: ev.utmMedium || '',
+        utmCampaign: ev.utmCampaign || '',
+        variant: ev.variant,
+        gateway: ev.gateway || '',
+        revenue: ev.revenue || 0,
+        currency: ev.currency || 'BRL',
+      }))
+    );
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `global-presell-cliques-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const selectedContext = useMemo(() => {
+    if (!selectedEvent) return null;
+    return enrichedEvents.find((x) => x.ev.id === selectedEvent.id) || null;
+  }, [selectedEvent, enrichedEvents]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="font-display text-2xl font-bold text-slate-900">
-            {isPt ? 'Rastreamento de Cliques & Origens' : 'Live Click & Origin Tracking'}
+            {isPt ? 'Rastreamento Detalhado de Cliques & Origens' : 'Detailed Click & Origin Tracking'}
           </h2>
           <p className="text-sm text-slate-500 mt-1">
             {isPt
-              ? 'Registro em tempo real de visualizações, cliques nos botões de afiliados, WhatsApp e checkouts.'
-              : 'Real-time stream of visitor views, outbound affiliate clicks, WhatsApp taps, and checkouts.'}
+              ? 'Identifique exatamente qual botão foi clicado, qual produto e página, cidade, estado, país, idioma, navegador/app e origem.'
+              : 'Inspect exact button clicked, product, page, city, region, country, language, browser/app, and traffic origin.'}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={eventFilter}
-            onChange={(e) => setEventFilter(e.target.value)}
-            className="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white"
-          >
-            <option value="all">{isPt ? 'Todos os Eventos' : 'All Events'}</option>
-            <option value="page_view">page_view</option>
-            <option value="affiliate_click">affiliate_click</option>
-            <option value="whatsapp_click">whatsapp_click</option>
-            <option value="checkout_start">checkout_start</option>
-            <option value="conversion">conversion</option>
-          </select>
+        <button
+          onClick={handleExportCsv}
+          disabled={filteredEvents.length === 0}
+          className="px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-2 self-start cursor-pointer shrink-0"
+        >
+          <Download className="w-4 h-4" />
+          <span>{isPt ? 'Exportar CSV' : 'Export CSV'}</span>
+        </button>
+      </div>
 
-          <select
-            value={deviceFilter}
-            onChange={(e) => setDeviceFilter(e.target.value)}
-            className="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white"
-          >
-            <option value="all">{isPt ? 'Todos Dispositivos' : 'All Devices'}</option>
-            <option value="desktop">Desktop</option>
-            <option value="mobile">Mobile</option>
-            <option value="tablet">Tablet</option>
-          </select>
+      {/* Summary Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <p className="text-xs text-slate-500">{isPt ? 'Eventos Filtrados' : 'Filtered Events'}</p>
+          <p className="font-mono text-2xl font-bold tabular-nums text-slate-900 mt-1">
+            {summary.total}
+          </p>
+          <p className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+            {summary.views} {isPt ? 'visualizações' : 'views'}
+          </p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <p className="text-xs text-slate-500">{isPt ? 'Cliques de Saída' : 'Outbound Clicks'}</p>
+          <p className="font-mono text-2xl font-bold tabular-nums text-blue-700 mt-1">
+            {summary.outboundClicks}
+          </p>
+          <p className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+            CTR {summary.ctr.toFixed(1)}%
+          </p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <p className="text-xs text-slate-500">{isPt ? 'Alcance Geográfico' : 'Geo Reach'}</p>
+          <p className="font-mono text-2xl font-bold tabular-nums text-slate-900 mt-1">
+            {summary.countryCount} <span className="text-sm font-normal text-slate-400">{isPt ? 'países' : 'countries'}</span>
+          </p>
+          <p className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+            {summary.cityCount} {isPt ? 'cidades identificadas' : 'cities detected'}
+          </p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <p className="text-xs text-slate-500">{isPt ? 'Principal Origem' : 'Top Origin'}</p>
+          <p className="font-display text-lg font-bold text-slate-900 mt-1.5 truncate">
+            {summary.topSource}
+          </p>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            {isPt ? 'Canal com mais registros' : 'Most frequent source'}
+          </p>
         </div>
       </div>
 
+      {/* Filter Bar */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center gap-2.5">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder={
+              isPt
+                ? 'Buscar cidade, produto, página, botão ou UTM...'
+                : 'Search city, product, page, button, or UTM...'
+            }
+            className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <select
+          value={productFilter}
+          onChange={(e) => setProductFilter(e.target.value)}
+          className="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white"
+        >
+          <option value="all">{isPt ? 'Todos os Produtos' : 'All Products'}</option>
+          {products.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={pageFilter}
+          onChange={(e) => setPageFilter(e.target.value)}
+          className="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white max-w-[190px]"
+        >
+          <option value="all">{isPt ? 'Todas as Páginas' : 'All Pages'}</option>
+          {pages.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.title}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={eventFilter}
+          onChange={(e) => setEventFilter(e.target.value)}
+          className="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white"
+        >
+          <option value="all">{isPt ? 'Todos os Eventos' : 'All Events'}</option>
+          <option value="clicks_only">{isPt ? 'Apenas Cliques & Conversões' : 'Clicks & Conversions Only'}</option>
+          <option value="page_view">{isPt ? 'Visualização (page_view)' : 'Page View'}</option>
+          <option value="affiliate_click">{isPt ? 'Clique Afiliado' : 'Affiliate Click'}</option>
+          <option value="whatsapp_click">{isPt ? 'Clique WhatsApp' : 'WhatsApp Click'}</option>
+          <option value="checkout_start">{isPt ? 'Início Checkout' : 'Checkout Start'}</option>
+          <option value="conversion">{isPt ? 'Conversão' : 'Conversion'}</option>
+        </select>
+
+        <select
+          value={countryFilter}
+          onChange={(e) => setCountryFilter(e.target.value)}
+          className="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white"
+        >
+          <option value="all">{isPt ? 'Todos Países' : 'All Countries'}</option>
+          {availableCountries.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={deviceFilter}
+          onChange={(e) => setDeviceFilter(e.target.value)}
+          className="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white"
+        >
+          <option value="all">{isPt ? 'Todos Dispositivos' : 'All Devices'}</option>
+          <option value="desktop">Desktop</option>
+          <option value="mobile">Mobile</option>
+          <option value="tablet">Tablet</option>
+        </select>
+      </div>
+
+      {/* Detailed Events Table */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        {sortedEvents.length === 0 ? (
+        {filteredEvents.length === 0 ? (
           <div className="p-10 text-center text-sm text-slate-500">
             {isPt
-              ? 'Nenhum evento registrado ainda. Visite qualquer página publicada para ver os dados em tempo real.'
-              : 'No events recorded yet. Visit any published page to see live click telemetry.'}
+              ? 'Nenhum evento encontrado para os filtros atuais.'
+              : 'No events match the selected filters.'}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
-                  <th className="py-3 px-5 font-medium">{isPt ? 'Data/Hora' : 'Timestamp'}</th>
-                  <th className="py-3 px-4 font-medium">{isPt ? 'Evento' : 'Event'}</th>
-                  <th className="py-3 px-4 font-medium">{isPt ? 'Página' : 'Page'}</th>
-                  <th className="py-3 px-4 font-medium">{isPt ? 'País / Idioma' : 'Country / Lang'}</th>
-                  <th className="py-3 px-4 font-medium">{isPt ? 'Dispositivo' : 'Device'}</th>
-                  <th className="py-3 px-4 font-medium">A/B</th>
-                  <th className="py-3 px-5 font-medium">UTM / Gateway</th>
+                  <th className="py-3 px-4 font-medium">{isPt ? 'Data/Hora' : 'Timestamp'}</th>
+                  <th className="py-3 px-4 font-medium">{isPt ? 'O que foi clicado' : 'What was clicked'}</th>
+                  <th className="py-3 px-4 font-medium">{isPt ? 'Produto & Página' : 'Product & Page'}</th>
+                  <th className="py-3 px-4 font-medium">{isPt ? 'Localização & Idioma' : 'Location & Language'}</th>
+                  <th className="py-3 px-4 font-medium">{isPt ? 'Dispositivo / App' : 'Device / Browser'}</th>
+                  <th className="py-3 px-4 font-medium">{isPt ? 'Origem / UTM / A/B' : 'Origin / UTM / A/B'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
-                {sortedEvents.slice(0, 100).map((ev) => (
-                  <tr key={ev.id} className="hover:bg-slate-50/60">
-                    <td className="py-3 px-5 font-mono tabular-nums text-slate-500">
-                      {ev.createdAt?.toDate
-                        ? ev.createdAt.toDate().toLocaleString(isPt ? 'pt-BR' : 'en-US')
-                        : 'Agora'}
-                    </td>
-                    <td className="py-3 px-4 font-mono font-semibold text-slate-900">
-                      {ev.eventType}
-                    </td>
-                    <td className="py-3 px-4 text-slate-700 font-medium">
-                      {getPageTitle(ev.pageId)}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-slate-600">
-                      {ev.country} · {ev.language.toUpperCase()}
-                    </td>
-                    <td className="py-3 px-4 text-slate-600">{ev.device}</td>
-                    <td className="py-3 px-4 font-mono font-semibold text-blue-700">
-                      {ev.variant}
-                    </td>
-                    <td className="py-3 px-5 font-mono text-slate-500">
-                      {ev.utmSource || 'direct'}
-                      {ev.utmCampaign ? ` / ${ev.utmCampaign}` : ''}
-                      {ev.gateway ? ` · ${ev.gateway}` : ''}
-                    </td>
-                  </tr>
-                ))}
+                {filteredEvents.slice(0, 150).map(({ ev, productName, pageTitle, pageSlug }) => {
+                  const isOutbound =
+                    ev.eventType === 'affiliate_click' || ev.eventType === 'whatsapp_click';
+                  const isConv = ev.eventType === 'conversion';
+                  let destHost = '';
+                  if (ev.clickedUrl) {
+                    try {
+                      destHost = new URL(ev.clickedUrl).hostname.replace(/^www\./, '');
+                    } catch {
+                      destHost = '';
+                    }
+                  }
+                  return (
+                    <tr
+                      key={ev.id}
+                      onClick={() => setSelectedEvent(ev)}
+                      className="hover:bg-slate-50/80 cursor-pointer"
+                    >
+                      <td className="py-3 px-4 font-mono tabular-nums text-slate-500 whitespace-nowrap">
+                        {ev.createdAt?.toDate
+                          ? ev.createdAt.toDate().toLocaleString(isPt ? 'pt-BR' : 'en-US')
+                          : 'Agora'}
+                      </td>
+                      <td className="py-3 px-4">
+                        <p
+                          className={`font-semibold ${
+                            isConv
+                              ? 'text-emerald-700'
+                              : isOutbound
+                              ? 'text-blue-700'
+                              : 'text-slate-900'
+                          }`}
+                        >
+                          {formatEventTypeLabel(ev.eventType, isPt)}
+                        </p>
+                        <p className="text-[11px] text-slate-600 truncate max-w-[230px]">
+                          {ev.clickedElement
+                            ? formatClickedElementLabel(ev.clickedElement, isPt)
+                            : isPt
+                            ? 'Registro padrão'
+                            : 'Standard event'}
+                          {ev.clickedLabel ? ` · "${ev.clickedLabel}"` : ''}
+                        </p>
+                        {destHost && ev.eventType !== 'page_view' && (
+                          <p className="text-[10px] font-mono text-slate-400 truncate max-w-[230px]">
+                            → {destHost}
+                          </p>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        <p className="font-semibold text-slate-900">
+                          {productName || (isPt ? 'Sem produto' : 'No product')}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate max-w-[210px]">
+                          {pageTitle}
+                          {pageSlug ? ` · /${pageSlug}` : ''}
+                        </p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <p className="font-medium text-slate-800">{formatLocationSummary(ev)}</p>
+                        <p className="text-[11px] font-mono text-slate-500">
+                          {(ev.language || 'pt').toUpperCase()}
+                          {ev.browserLanguage ? ` (${ev.browserLanguage})` : ''}
+                        </p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <p className="font-medium text-slate-700 capitalize">
+                          {ev.device}
+                          {ev.os ? ` · ${ev.os}` : ''}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {ev.browser || (isPt ? 'Navegador padrão' : 'Browser')}
+                        </p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <p className="font-medium text-slate-800">
+                          {ev.trafficSource || ev.utmSource || 'Direct'}
+                          <span className="ml-1.5 font-mono text-[10px] text-blue-700">
+                            [{ev.variant}]
+                          </span>
+                        </p>
+                        <p className="text-[11px] font-mono text-slate-500 truncate max-w-[180px]">
+                          {ev.utmCampaign || ev.gateway || ev.utmMedium || '—'}
+                        </p>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* Click Detail Inspector Modal */}
+      {selectedContext && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-5 border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3 gap-4">
+              <div>
+                <p className="text-xs font-mono text-blue-700 font-semibold">
+                  {formatEventTypeLabel(selectedContext.ev.eventType, isPt)} · {isPt ? 'Variante' : 'Variant'}{' '}
+                  {selectedContext.ev.variant}
+                </p>
+                <h3 className="font-display font-bold text-lg text-slate-900 mt-0.5">
+                  {selectedContext.productName || selectedContext.pageTitle}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {selectedContext.ev.createdAt?.toDate
+                    ? selectedContext.ev.createdAt.toDate().toLocaleString(isPt ? 'pt-BR' : 'en-US')
+                    : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedEvent(null)}
+                className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
+                <p className="text-[11px] font-semibold text-slate-500">
+                  {isPt ? 'O que foi clicado' : 'Clicked Element'}
+                </p>
+                <p className="font-semibold text-slate-900">
+                  {selectedContext.ev.clickedElement
+                    ? formatClickedElementLabel(selectedContext.ev.clickedElement, isPt)
+                    : formatEventTypeLabel(selectedContext.ev.eventType, isPt)}
+                </p>
+                {selectedContext.ev.clickedLabel && (
+                  <p className="text-slate-700">
+                    {isPt ? 'Texto do botão:' : 'Button label:'}{' '}
+                    <span className="font-medium">"{selectedContext.ev.clickedLabel}"</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
+                <p className="text-[11px] font-semibold text-slate-500">
+                  {isPt ? 'Produto & Página' : 'Product & Page'}
+                </p>
+                <p className="font-semibold text-slate-900">
+                  {selectedContext.productName || (isPt ? 'Sem produto vinculado' : 'No linked product')}
+                </p>
+                <p className="text-slate-700">
+                  {selectedContext.pageTitle}
+                  {selectedContext.pageSlug ? ` (/${selectedContext.pageSlug})` : ''}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
+                <p className="text-[11px] font-semibold text-slate-500">
+                  {isPt ? 'Geolocalização & Idioma' : 'Geolocation & Language'}
+                </p>
+                <p className="font-semibold text-slate-900">
+                  {formatLocationSummary(selectedContext.ev)}
+                </p>
+                <p className="text-slate-600">
+                  {isPt ? 'Idioma da página:' : 'Page language:'}{' '}
+                  <span className="font-mono uppercase">{selectedContext.ev.language}</span>
+                  {selectedContext.ev.browserLanguage
+                    ? ` · ${isPt ? 'Navegador:' : 'Browser:'} ${selectedContext.ev.browserLanguage}`
+                    : ''}
+                </p>
+                {selectedContext.ev.timezone && (
+                  <p className="text-slate-500 font-mono text-[11px]">
+                    {selectedContext.ev.timezone}
+                  </p>
+                )}
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
+                <p className="text-[11px] font-semibold text-slate-500">
+                  {isPt ? 'Dispositivo, App & Origem' : 'Device, App & Source'}
+                </p>
+                <p className="font-semibold text-slate-900">
+                  {selectedContext.ev.trafficSource || selectedContext.ev.utmSource || 'Direct'}
+                </p>
+                <p className="text-slate-700 capitalize">
+                  {selectedContext.ev.device}
+                  {selectedContext.ev.browser ? ` · ${selectedContext.ev.browser}` : ''}
+                  {selectedContext.ev.os ? ` · ${selectedContext.ev.os}` : ''}
+                </p>
+                <p className="text-slate-500 font-mono text-[11px]">
+                  utm_source={selectedContext.ev.utmSource || 'direct'} · utm_medium=
+                  {selectedContext.ev.utmMedium || 'none'}
+                  {selectedContext.ev.utmCampaign
+                    ? ` · utm_campaign=${selectedContext.ev.utmCampaign}`
+                    : ''}
+                </p>
+              </div>
+            </div>
+
+            {(selectedContext.ev.clickedUrl || selectedContext.ev.referrer) && (
+              <div className="space-y-2 text-xs border-t border-slate-100 pt-3">
+                {selectedContext.ev.clickedUrl && (
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-500 mb-1">
+                      {isPt ? 'URL de Destino Clicada' : 'Clicked Destination URL'}
+                    </p>
+                    <p className="font-mono text-[11px] text-blue-700 break-all bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      {selectedContext.ev.clickedUrl}
+                    </p>
+                  </div>
+                )}
+                {selectedContext.ev.referrer && (
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-500 mb-1">Referrer</p>
+                    <p className="font-mono text-[11px] text-slate-600 break-all bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      {selectedContext.ev.referrer}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setSelectedEvent(null)}
+                className="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold cursor-pointer"
+              >
+                {isPt ? 'Fechar' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -508,6 +1014,8 @@ export const ClickTrackingView: React.FC<ClickTrackingViewProps> = ({
 interface AnalyticsConversionsViewProps {
   uiLang: LanguageCode;
   pages: PageItem[];
+  products?: Product[];
+  affiliateLinks?: AffiliateLink[];
   clickEvents: ClickEvent[];
   campaigns: Campaign[];
   customDomain?: string;
@@ -521,6 +1029,7 @@ interface AnalyticsConversionsViewProps {
 export const AnalyticsConversionsView: React.FC<AnalyticsConversionsViewProps> = ({
   uiLang,
   pages,
+  products = [],
   clickEvents,
   campaigns,
   customDomain,
@@ -543,6 +1052,69 @@ export const AnalyticsConversionsView: React.FC<AnalyticsConversionsViewProps> =
     const conversions = clickEvents.filter((e) => e.eventType === 'conversion').length;
     return { views, clicks, checkouts, conversions };
   }, [clickEvents]);
+
+  const byClickedElement = useMemo(() => {
+    const map = new Map<string, { label: string; count: number; sampleButton: string }>();
+    clickEvents
+      .filter((e) => e.eventType !== 'page_view')
+      .forEach((ev) => {
+        const key = ev.clickedElement || ev.eventType;
+        const label = ev.clickedElement
+          ? formatClickedElementLabel(ev.clickedElement, isPt)
+          : formatEventTypeLabel(ev.eventType, isPt);
+        const cur = map.get(key) || { label, count: 0, sampleButton: '' };
+        cur.count += 1;
+        if (!cur.sampleButton && ev.clickedLabel) cur.sampleButton = ev.clickedLabel;
+        map.set(key, cur);
+      });
+    return [...map.values()].sort((a, b) => b.count - a.count);
+  }, [clickEvents, isPt]);
+
+  const byGeoAndOrigin = useMemo(() => {
+    const cityMap = new Map<string, { views: number; clicks: number }>();
+    const originMap = new Map<string, { views: number; clicks: number }>();
+    clickEvents.forEach((ev) => {
+      const loc = formatLocationSummary(ev);
+      const c = cityMap.get(loc) || { views: 0, clicks: 0 };
+      if (ev.eventType === 'page_view') c.views += 1;
+      if (ev.eventType === 'affiliate_click' || ev.eventType === 'whatsapp_click') c.clicks += 1;
+      cityMap.set(loc, c);
+
+      const src =
+        ev.trafficSource ||
+        (ev.utmSource && ev.utmSource !== 'direct' ? ev.utmSource : 'Direct');
+      const o = originMap.get(src) || { views: 0, clicks: 0 };
+      if (ev.eventType === 'page_view') o.views += 1;
+      if (ev.eventType === 'affiliate_click' || ev.eventType === 'whatsapp_click') o.clicks += 1;
+      originMap.set(src, o);
+    });
+    return {
+      locations: [...cityMap.entries()]
+        .sort((a, b) => b[1].clicks + b[1].views - (a[1].clicks + a[1].views))
+        .slice(0, 8),
+      origins: [...originMap.entries()]
+        .sort((a, b) => b[1].clicks + b[1].views - (a[1].clicks + a[1].views))
+        .slice(0, 8),
+    };
+  }, [clickEvents]);
+
+  const byPagePerformance = useMemo(() => {
+    const prodMap = new Map(products.map((p) => [p.id, p]));
+    return pages
+      .map((pg) => {
+        const evs = clickEvents.filter(
+          (e) => e.pageId === pg.id || (pg.publicKey && e.publicKey === pg.publicKey)
+        );
+        const views = evs.filter((e) => e.eventType === 'page_view').length;
+        const clicks = evs.filter(
+          (e) => e.eventType === 'affiliate_click' || e.eventType === 'whatsapp_click'
+        ).length;
+        const ctr = views > 0 ? (clicks / views) * 100 : 0;
+        const prod = pg.productId ? prodMap.get(pg.productId) : undefined;
+        return { pg, prod, views, clicks, ctr };
+      })
+      .sort((a, b) => b.clicks - a.clicks || b.views - a.views);
+  }, [pages, products, clickEvents]);
 
   const abResults = useMemo(() => {
     return pages
@@ -586,8 +1158,8 @@ export const AnalyticsConversionsView: React.FC<AnalyticsConversionsViewProps> =
         </h2>
         <p className="text-sm text-slate-500 mt-1">
           {isPt
-            ? 'Funil completo de conversão em tempo real, desempenho de variantes A/B e campanhas de tráfego pago.'
-            : 'Live conversion funnel, A/B variant lift analysis, and paid traffic campaign performance.'}
+            ? 'Funil completo de conversão em tempo real, cliques por botão/elemento, geolocalização, desempenho por página e testes A/B.'
+            : 'Live conversion funnel, clicks by element/button, geolocation, page performance, and A/B split testing.'}
         </p>
       </div>
 
@@ -618,6 +1190,133 @@ export const AnalyticsConversionsView: React.FC<AnalyticsConversionsViewProps> =
           </p>
         </div>
       </div>
+
+      {/* Granular Breakdowns: Clicked Elements, Locations, Origins */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
+          <h3 className="font-display font-bold text-sm text-slate-900 inline-flex items-center gap-2">
+            <MousePointerClick className="w-4 h-4 text-blue-600" />
+            <span>{isPt ? 'Cliques por Botão / Elemento' : 'Clicks by Button / Element'}</span>
+          </h3>
+          {byClickedElement.length === 0 ? (
+            <p className="text-xs text-slate-500">
+              {isPt ? 'Nenhum clique registrado ainda.' : 'No clicks recorded yet.'}
+            </p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {byClickedElement.map((row) => (
+                <div key={row.label} className="py-2 flex items-center justify-between gap-3 text-xs">
+                  <div className="min-w-0">
+                    <p className="font-medium text-slate-800 truncate">{row.label}</p>
+                    {row.sampleButton && (
+                      <p className="text-[11px] text-slate-500 truncate">"{row.sampleButton}"</p>
+                    )}
+                  </div>
+                  <span className="font-mono font-semibold tabular-nums text-blue-700 shrink-0">
+                    {row.count}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
+          <h3 className="font-display font-bold text-sm text-slate-900 inline-flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-emerald-600" />
+            <span>{isPt ? 'Cidades, Estados & Países' : 'Cities, Regions & Countries'}</span>
+          </h3>
+          {byGeoAndOrigin.locations.length === 0 ? (
+            <p className="text-xs text-slate-500">
+              {isPt ? 'Aguardando acessos.' : 'Awaiting visits.'}
+            </p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {byGeoAndOrigin.locations.map(([loc, st]) => (
+                <div key={loc} className="py-2 flex items-center justify-between gap-2 text-xs">
+                  <span className="font-medium text-slate-800 truncate">{loc}</span>
+                  <span className="font-mono tabular-nums text-slate-500 shrink-0">
+                    {st.views} vis · {st.clicks} clq
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
+          <h3 className="font-display font-bold text-sm text-slate-900 inline-flex items-center gap-2">
+            <Compass className="w-4 h-4 text-slate-700" />
+            <span>{isPt ? 'Origens & Apps' : 'Sources & Apps'}</span>
+          </h3>
+          {byGeoAndOrigin.origins.length === 0 ? (
+            <p className="text-xs text-slate-500">
+              {isPt ? 'Aguardando acessos.' : 'Awaiting visits.'}
+            </p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {byGeoAndOrigin.origins.map(([src, st]) => (
+                <div key={src} className="py-2 flex items-center justify-between gap-2 text-xs">
+                  <span className="font-medium text-slate-800 truncate">{src}</span>
+                  <span className="font-mono tabular-nums text-slate-500 shrink-0">
+                    {st.views} vis · {st.clicks} clq
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Performance by Page & Product */}
+      {byPagePerformance.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-200">
+            <h3 className="font-display font-bold text-base text-slate-900">
+              {isPt ? 'Desempenho por Página & Produto' : 'Performance by Page & Product'}
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
+                  <th className="py-3 px-6 font-medium">{isPt ? 'Página' : 'Page'}</th>
+                  <th className="py-3 px-4 font-medium">{isPt ? 'Produto' : 'Product'}</th>
+                  <th className="py-3 px-4 font-medium">{isPt ? 'Idioma / País' : 'Lang / Country'}</th>
+                  <th className="py-3 px-4 font-medium text-right">{isPt ? 'Visitantes' : 'Views'}</th>
+                  <th className="py-3 px-4 font-medium text-right">{isPt ? 'Cliques' : 'Clicks'}</th>
+                  <th className="py-3 px-6 font-medium text-right">CTR</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {byPagePerformance.map(({ pg, prod, views, clicks, ctr }) => (
+                  <tr key={pg.id} className="hover:bg-slate-50/70">
+                    <td className="py-3 px-6">
+                      <p className="font-medium text-slate-900">{pg.title}</p>
+                      <p className="text-xs font-mono text-slate-500">/{pg.slug}</p>
+                    </td>
+                    <td className="py-3 px-4 text-xs text-slate-700">
+                      {prod?.name || '—'}
+                    </td>
+                    <td className="py-3 px-4 text-xs font-mono text-slate-500">
+                      {pg.language.toUpperCase()} · {pg.targetCountry || 'BR'}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono tabular-nums text-slate-700">
+                      {views}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono tabular-nums text-slate-700">
+                      {clicks}
+                    </td>
+                    <td className="py-3 px-6 text-right font-mono tabular-nums font-semibold text-blue-700">
+                      {ctr.toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* A/B Tests Matrix */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">

@@ -5,8 +5,6 @@ import {
   getDoc,
   getDocs,
   query,
-  serverTimestamp,
-  setDoc,
   where,
 } from 'firebase/firestore';
 import {
@@ -25,10 +23,10 @@ import {
 import { db } from '../lib/firebase';
 import { GPC_TABLES, getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
 import { mapRowToPublishedPage } from '../lib/supabaseMappers';
+import { recordVisitorEvent, waitWithTimeout } from '../lib/clickLogger';
+import { resolveVisitorGeo } from '../lib/visitorInfo';
 import {
   buildAffiliateRedirectUrl,
-  detectVisitorCountry,
-  detectVisitorDevice,
   detectVisitorLanguage,
   formatCurrency,
   generatePixPayload,
@@ -49,65 +47,36 @@ function logVisitorEvent(
   eventType: 'page_view' | 'affiliate_click' | 'whatsapp_click' | 'checkout_start' | 'conversion',
   variant: 'A' | 'B',
   activeLang: string,
-  extra?: { gateway?: string; revenue?: number; currency?: string }
-) {
-  if (!page.ownerId || !page.publicKey) return;
-  const eventId = `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-  const searchParams = new URLSearchParams(window.location.search);
-  const utmSource = (searchParams.get('utm_source') || page.tracking?.utmSource || 'direct').slice(0, 100);
-  const utmMedium = (searchParams.get('utm_medium') || page.tracking?.utmMedium || 'none').slice(0, 100);
-  const utmCampaign = (searchParams.get('utm_campaign') || page.tracking?.utmCampaign || '').slice(0, 100);
-  const gateway = (extra?.gateway || '').slice(0, 40);
-  const revenue = Number(extra?.revenue ?? 0);
-  const currency = (extra?.currency || page.paymentConfig?.currency || 'BRL').slice(0, 10);
-  const country = (detectVisitorCountry() || 'BR').slice(0, 16);
-  const device = detectVisitorDevice();
-  const language = (activeLang || 'pt').slice(0, 16);
-
-  if (isSupabaseConfigured) {
-    getSupabaseClient()
-      .from(GPC_TABLES.clickEvents)
-      .insert({
-        id: eventId,
-        owner_id: page.ownerId.slice(0, 128),
-        page_id: (page.pageId || '').slice(0, 128),
-        public_key: page.publicKey.slice(0, 128),
-        product_id: (page.productId || '').slice(0, 128),
-        event_type: eventType,
-        variant,
-        language,
-        country,
-        device,
-        utm_source: utmSource,
-        utm_medium: utmMedium,
-        utm_campaign: utmCampaign,
-        gateway,
-        revenue,
-        currency,
-      })
-      .then(() => undefined, () => undefined);
-    return;
+  extra?: {
+    gateway?: string;
+    revenue?: number;
+    currency?: string;
+    clickedElement?: string;
+    clickedLabel?: string;
+    clickedUrl?: string;
+    awaitGeoMs?: number;
   }
-
-  setDoc(doc(db, 'clickEvents', eventId), {
-    ownerId: page.ownerId.slice(0, 128),
-    pageId: (page.pageId || '').slice(0, 128),
-    publicKey: page.publicKey.slice(0, 128),
-    productId: (page.productId || '').slice(0, 128),
+): Promise<void> {
+  return recordVisitorEvent({
+    ownerId: page.ownerId,
+    pageId: page.pageId,
+    publicKey: page.publicKey,
+    productId: page.productId,
     eventType,
     variant,
-    language,
-    country,
-    device,
-    utmSource,
-    utmMedium,
-    utmCampaign,
-    gateway,
-    revenue,
-    currency,
-    createdAt: serverTimestamp(),
-  }).catch(() => {
-    // Non-blocking telemetry
+    language: activeLang,
+    defaultUtmSource: page.tracking?.utmSource,
+    defaultUtmMedium: page.tracking?.utmMedium,
+    defaultUtmCampaign: page.tracking?.utmCampaign,
+    gateway: extra?.gateway,
+    revenue: extra?.revenue,
+    currency: extra?.currency || page.paymentConfig?.currency || 'BRL',
+    clickedElement: extra?.clickedElement,
+    clickedLabel: extra?.clickedLabel,
+    clickedUrl: extra?.clickedUrl,
+    pageTitle: page.title,
+    pageSlug: page.slug,
+    awaitGeoMs: extra?.awaitGeoMs,
   });
 }
 
@@ -131,6 +100,12 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
   const [buyerEmail, setBuyerEmail] = useState('');
   const [ghostTriggered, setGhostTriggered] = useState(false);
   const viewLoggedRef = useRef(false);
+
+  useEffect(() => {
+    if (!previewPage) {
+      resolveVisitorGeo().catch(() => undefined);
+    }
+  }, [previewPage]);
 
   useEffect(() => {
     if (previewPage) {
@@ -302,7 +277,12 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
         // Ignore storage restrictions
       }
       if (!alreadyViewed) {
-        logVisitorEvent(page, 'page_view', assigned, activeLang);
+        logVisitorEvent(page, 'page_view', assigned, activeLang, {
+          clickedElement: 'page_load',
+          clickedLabel: page.title,
+          clickedUrl: typeof window !== 'undefined' ? window.location.href : '',
+          awaitGeoMs: 1200,
+        });
       }
     }
   }, [page, previewPage, activeLang]);
@@ -379,14 +359,25 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
     );
   }, [page]);
 
-  const handleAffiliateClick = (customUrl?: string) => {
+  const handleAffiliateClick = async (
+    customUrl?: string,
+    clickMeta?: { element: string; label?: string }
+  ) => {
     if (!page) return;
-    if (!previewPage) {
-      logVisitorEvent(page, 'affiliate_click', variant, activeLang);
-    }
     const target = customUrl
       ? buildAffiliateRedirectUrl(customUrl, undefined, window.location.search)
       : affiliateDestination;
+    if (!previewPage) {
+      await waitWithTimeout(
+        logVisitorEvent(page, 'affiliate_click', variant, activeLang, {
+          clickedElement: clickMeta?.element || 'cta_button',
+          clickedLabel: clickMeta?.label || page.title,
+          clickedUrl: target && target !== '#' ? target : '',
+          awaitGeoMs: 250,
+        }),
+        420
+      );
+    }
     if (target && target !== '#') {
       window.location.assign(target);
     }
@@ -397,6 +388,10 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
     if (!previewPage) {
       logVisitorEvent(page, 'checkout_start', variant, activeLang, {
         gateway: block.paymentProvider || page.paymentConfig?.provider || 'stripe',
+        clickedElement: 'payment_checkout',
+        clickedLabel: block.buttonText || block.title || 'Checkout',
+        clickedUrl: block.checkoutUrl || page.paymentConfig?.checkoutUrl || '',
+        awaitGeoMs: 300,
       });
     }
     setCheckoutBlock(block);
@@ -421,6 +416,10 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
         gateway: provider,
         revenue: price,
         currency,
+        clickedElement: 'payment_checkout',
+        clickedLabel: checkoutBlock.title || `Checkout (${provider})`,
+        clickedUrl: checkoutBlock.checkoutUrl || page.paymentConfig?.checkoutUrl || '',
+        awaitGeoMs: 300,
       });
     }
   };
@@ -567,7 +566,12 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
               : 'Interaction verified. Proceed securely to the official product portal:'}
           </span>
           <button
-            onClick={() => handleAffiliateClick()}
+            onClick={() =>
+              handleAffiliateClick(undefined, {
+                element: 'ghost_bar',
+                label: isPt ? 'Acessar Site Oficial Agora' : 'Proceed to Official Site',
+              })
+            }
             className="px-4 py-1.5 rounded-md font-semibold text-white cursor-pointer"
             style={{ backgroundColor: activePrimary }}
           >
@@ -614,7 +618,10 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
                 <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
                   <button
                     onClick={() =>
-                      handleAffiliateClick(block.useAffiliateLink ? undefined : block.buttonUrl)
+                      handleAffiliateClick(block.useAffiliateLink ? undefined : block.buttonUrl, {
+                        element: 'cookie_consent',
+                        label: displayBtnText || (isPt ? 'Aceitar e Continuar' : 'Accept & Continue'),
+                      })
                     }
                     className="w-full sm:w-auto px-6 py-3.5 rounded-lg text-white font-semibold text-sm sm:text-base transition-opacity hover:opacity-95 inline-flex items-center justify-center gap-2 cursor-pointer"
                     style={{ backgroundColor: activePrimary }}
@@ -651,7 +658,10 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
                       <div className="pt-2">
                         <button
                           onClick={() =>
-                            handleAffiliateClick(block.useAffiliateLink ? undefined : block.buttonUrl)
+                            handleAffiliateClick(block.useAffiliateLink ? undefined : block.buttonUrl, {
+                              element: 'hero',
+                              label: displayBtnText || displayTitle || 'Hero CTA',
+                            })
                           }
                           className="px-6 py-3.5 rounded-lg text-white font-semibold text-sm sm:text-base inline-flex items-center gap-2 hover:opacity-95 transition-opacity cursor-pointer"
                           style={{ backgroundColor: activePrimary }}
@@ -881,7 +891,10 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
                 )}
                 <button
                   onClick={() =>
-                    handleAffiliateClick(block.useAffiliateLink ? undefined : block.buttonUrl)
+                    handleAffiliateClick(block.useAffiliateLink ? undefined : block.buttonUrl, {
+                      element: 'cta_button',
+                      label: block.buttonText || (isPt ? 'Acessar Oferta Oficial' : 'Go to Official Offer'),
+                    })
                   }
                   className="px-7 py-3.5 rounded-lg text-white font-semibold text-base inline-flex items-center gap-2 hover:opacity-95 cursor-pointer"
                   style={{ backgroundColor: activePrimary }}
@@ -989,7 +1002,13 @@ export const PublicPageView: React.FC<PublicPageViewProps> = ({
           rel="noopener noreferrer"
           onClick={() => {
             if (!previewPage) {
-              logVisitorEvent(page, 'whatsapp_click', variant, activeLang);
+              const waHref = `https://wa.me/${page.whatsapp?.phoneNumber?.replace(/\D/g, '') || ''}`;
+              logVisitorEvent(page, 'whatsapp_click', variant, activeLang, {
+                clickedElement: 'whatsapp',
+                clickedLabel: page.whatsapp?.buttonLabel || 'WhatsApp',
+                clickedUrl: waHref,
+                awaitGeoMs: 250,
+              });
             }
           }}
           className={`fixed bottom-5 ${

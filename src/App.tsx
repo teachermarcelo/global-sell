@@ -437,6 +437,7 @@ const WorkspaceShell: React.FC = () => {
               uiLang={uiLang}
               pages={data.pages}
               products={data.products}
+              affiliateLinks={data.affiliateLinks}
               clickEvents={data.clickEvents}
               onNavigate={setActiveModule}
               onBootstrapStarter={data.bootstrapStarterCatalog}
@@ -589,6 +590,8 @@ const WorkspaceShell: React.FC = () => {
               uiLang={uiLang}
               clickEvents={data.clickEvents}
               pages={data.pages}
+              products={data.products}
+              affiliateLinks={data.affiliateLinks}
             />
           )}
 
@@ -596,6 +599,8 @@ const WorkspaceShell: React.FC = () => {
             <AnalyticsConversionsView
               uiLang={uiLang}
               pages={data.pages}
+              products={data.products}
+              affiliateLinks={data.affiliateLinks}
               clickEvents={data.clickEvents}
               campaigns={data.campaigns}
               customDomain={data.settings?.customDomain}
